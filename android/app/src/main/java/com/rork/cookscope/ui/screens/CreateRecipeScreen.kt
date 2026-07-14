@@ -27,9 +27,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -54,16 +54,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import com.rork.cookscope.data.RecipeData
-import com.rork.cookscope.data.RecipeDiscoveryService
-import com.rork.cookscope.data.model.Recipe
+import com.rork.cookscope.data.RecipeGenerationService
 import com.rork.cookscope.ui.components.SmoothInput
 import com.rork.cookscope.ui.theme.BlackBorder
 import com.rork.cookscope.ui.theme.BlackCard
@@ -79,14 +75,12 @@ fun CreateRecipeScreen(onRecipeGenerated: (String) -> Unit) {
     var selectedDishType by remember { mutableStateOf("Any Dish") }
     var selectedSkill by remember { mutableStateOf("Amateur") }
     var selectedMode by remember { mutableStateOf("Non-Vegan") }
-    var isSearching by remember { mutableStateOf(false) }
+    var isGenerating by remember { mutableStateOf(false) }
     var isPremium by remember { mutableStateOf(false) }
     var suggestionSeed by remember { mutableStateOf(0) }
-    var searchError by remember { mutableStateOf<String?>(null) }
-    var searchResults by remember { mutableStateOf<List<Recipe>>(emptyList()) }
-    var hasSearched by remember { mutableStateOf(false) }
+    var generateError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    val discoveryService = remember { RecipeDiscoveryService() }
+    val generationService = remember { RecipeGenerationService() }
 
     val allSuggestedIngredients = listOf(
         "Shrimp", "Cod", "Lamb", "Dill", "White Wine", "Leeks", "Egg", "Rice",
@@ -237,36 +231,35 @@ fun CreateRecipeScreen(onRecipeGenerated: (String) -> Unit) {
             }
         }
 
-        // Search buttons
+        // Generate buttons
         item {
             Column(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                // Premium button — searches for premium-quality recipes
+                // Premium generate button
                 Button(
                     onClick = {
-                        if (!isSearching && ingredientList.isNotEmpty()) {
-                            isSearching = true
+                        if (!isGenerating && ingredientList.isNotEmpty()) {
+                            isGenerating = true
                             isPremium = true
-                            searchError = null
-                            hasSearched = true
+                            generateError = null
                             scope.launch {
-                                val result = discoveryService.findRecipes(
+                                val result = generationService.generateRecipe(
                                     ingredients = ingredientList.toList(),
                                     cuisine = selectedCuisine,
+                                    dishType = selectedDishType,
                                     skillLevel = selectedSkill,
+                                    dietaryMode = selectedMode,
                                     isPremium = true,
                                 )
-                                isSearching = false
+                                isGenerating = false
                                 result.fold(
-                                    onSuccess = { recipes ->
-                                        searchResults = recipes
-                                        if (recipes.size == 1) {
-                                            onRecipeGenerated(recipes.first().id)
-                                        }
+                                    onSuccess = { recipe ->
+                                        RecipeData.addRecipe(recipe)
+                                        onRecipeGenerated(recipe.id)
                                     },
-                                    onFailure = { searchError = it.message ?: "Search failed" }
+                                    onFailure = { generateError = it.message ?: "Generation failed" }
                                 )
                             }
                         }
@@ -279,47 +272,46 @@ fun CreateRecipeScreen(onRecipeGenerated: (String) -> Unit) {
                         containerColor = GoldPrimary,
                         contentColor = Color.Black,
                     ),
-                    enabled = !isSearching && ingredientList.isNotEmpty(),
+                    enabled = !isGenerating && ingredientList.isNotEmpty(),
                 ) {
-                    Icon(Icons.Default.Search, contentDescription = null, tint = Color.Black)
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color.Black)
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        "Find Premium Recipes",
+                        "Generate Premium Recipe",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                     )
                 }
                 Text(
-                    "Restaurant quality recipes from 50,000+ database",
+                    "AI-crafted restaurant quality recipe with pro techniques",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                // Amateur button — label changes based on selected skill level
+                // Amateur generate button — label changes based on selected skill level
                 Button(
                     onClick = {
-                        if (!isSearching && ingredientList.isNotEmpty()) {
-                            isSearching = true
+                        if (!isGenerating && ingredientList.isNotEmpty()) {
+                            isGenerating = true
                             isPremium = false
-                            searchError = null
-                            hasSearched = true
+                            generateError = null
                             scope.launch {
-                                val result = discoveryService.findRecipes(
+                                val result = generationService.generateRecipe(
                                     ingredients = ingredientList.toList(),
                                     cuisine = selectedCuisine,
+                                    dishType = selectedDishType,
                                     skillLevel = selectedSkill,
+                                    dietaryMode = selectedMode,
                                     isPremium = false,
                                 )
-                                isSearching = false
+                                isGenerating = false
                                 result.fold(
-                                    onSuccess = { recipes ->
-                                        searchResults = recipes
-                                        if (recipes.size == 1) {
-                                            onRecipeGenerated(recipes.first().id)
-                                        }
+                                    onSuccess = { recipe ->
+                                        RecipeData.addRecipe(recipe)
+                                        onRecipeGenerated(recipe.id)
                                     },
-                                    onFailure = { searchError = it.message ?: "Search failed" }
+                                    onFailure = { generateError = it.message ?: "Generation failed" }
                                 )
                             }
                         }
@@ -332,22 +324,22 @@ fun CreateRecipeScreen(onRecipeGenerated: (String) -> Unit) {
                         containerColor = Color.Transparent,
                         contentColor = GoldPrimary,
                     ),
-                    enabled = !isSearching && ingredientList.isNotEmpty(),
+                    enabled = !isGenerating && ingredientList.isNotEmpty(),
                     border = androidx.compose.foundation.BorderStroke(
                         width = 1.5.dp,
                         color = GoldPrimary,
                     ),
                 ) {
                     Text(
-                        "Find $selectedSkill Recipes",
+                        "Generate $selectedSkill Recipe",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                     )
                 }
                 // Error message
-                if (searchError != null) {
+                if (generateError != null) {
                     Text(
-                        searchError!!,
+                        generateError!!,
                         style = MaterialTheme.typography.bodySmall,
                         color = Color(0xFFE53935),
                         textAlign = TextAlign.Center,
@@ -355,9 +347,9 @@ fun CreateRecipeScreen(onRecipeGenerated: (String) -> Unit) {
                     )
                 }
                 // Empty ingredients hint
-                if (ingredientList.isEmpty() && !isSearching) {
+                if (ingredientList.isEmpty() && !isGenerating) {
                     Text(
-                        "Add at least one ingredient to find recipes",
+                        "Add at least one ingredient to generate a recipe",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary,
                         textAlign = TextAlign.Center,
@@ -367,63 +359,15 @@ fun CreateRecipeScreen(onRecipeGenerated: (String) -> Unit) {
             }
         }
 
-        // Searching overlay
-        if (isSearching) {
+        // Generating overlay
+        if (isGenerating) {
             item {
-                SearchingOverlay(
+                GeneratingOverlay(
                     ingredients = ingredientList.toList(),
                     cuisine = selectedCuisine,
                     skill = selectedSkill,
                     premium = isPremium,
                 )
-            }
-        }
-
-        // Search results
-        if (hasSearched && !isSearching && searchResults.isNotEmpty()) {
-            item {
-                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "${searchResults.size} recipe${if (searchResults.size > 1) "s" else ""} found",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = GoldPrimary,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Spacer(Modifier.height(12.dp))
-                }
-            }
-            items(searchResults) { recipe ->
-                SearchResultCard(
-                    recipe = recipe,
-                    onClick = { onRecipeGenerated(recipe.id) },
-                )
-            }
-        }
-
-        // No results
-        if (hasSearched && !isSearching && searchResults.isEmpty() && searchError == null) {
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        "No recipes found",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = TextSecondary,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "Try different ingredients or broader cuisine options",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary,
-                        textAlign = TextAlign.Center,
-                    )
-                }
             }
         }
     }
@@ -598,7 +542,7 @@ private fun MenuItemColors() = androidx.compose.material3.MenuItemColors(
 )
 
 @Composable
-private fun SearchingOverlay(
+private fun GeneratingOverlay(
     ingredients: List<String>,
     cuisine: String,
     skill: String,
@@ -606,15 +550,16 @@ private fun SearchingOverlay(
 ) {
     var step by remember { mutableStateOf(0) }
     val steps = listOf(
-        "Searching 50,000+ recipes...",
-        "Matching your ingredients...",
-        "Filtering by cuisine & preferences...",
-        "Finding the best matches...",
+        "Analyzing your ingredients...",
+        "Selecting flavor pairings...",
+        "Crafting the recipe...",
+        "Adding cooking techniques...",
+        "Finalizing your recipe...",
     )
 
     LaunchedEffect(Unit) {
         while (step < steps.size - 1) {
-            delay(700)
+            delay(800)
             step++
         }
     }
@@ -657,69 +602,6 @@ private fun SearchingOverlay(
                     style = MaterialTheme.typography.labelSmall,
                     color = TextSecondary,
                     textAlign = TextAlign.Center,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SearchResultCard(
-    recipe: Recipe,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .clickable(onClick = onClick)
-            .padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AsyncImage(
-            model = recipe.imageUrl,
-            contentDescription = recipe.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(78.dp)
-                .clip(RoundedCornerShape(14.dp)),
-        )
-        Spacer(Modifier.width(14.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                recipe.title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    recipe.cuisine,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = GoldPrimary,
-                    fontWeight = FontWeight.Medium,
-                )
-                if (recipe.cookTimeMin > 0) {
-                    Text(
-                        " • ${recipe.cookTimeMin} min",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            Spacer(Modifier.height(4.dp))
-            if (recipe.tags.isNotEmpty()) {
-                Text(
-                    recipe.tags.take(3).joinToString(" • "),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
