@@ -16,9 +16,33 @@ object RecipeData {
     // Dynamic store for AI-generated recipes
     private val dynamicRecipes = mutableMapOf<String, Recipe>()
 
+    // Cache for recipes fetched from recipeapi.io
+    private val apiRecipes = mutableMapOf<String, Recipe>()
+
     fun addRecipe(recipe: Recipe) {
         dynamicRecipes[recipe.id] = recipe
     }
+
+    /**
+     * Cache recipes fetched from the recipe API.
+     */
+    fun setApiRecipes(recipes: List<Recipe>) {
+        recipes.forEach { recipe ->
+            apiRecipes[recipe.id] = recipe
+        }
+    }
+
+    /**
+     * Add or update a single API recipe in the cache.
+     */
+    fun addApiRecipe(recipe: Recipe) {
+        apiRecipes[recipe.id] = recipe
+    }
+
+    /**
+     * All recipes from the API cache.
+     */
+    val apiCached: List<Recipe> get() = apiRecipes.values.toList()
 
     val cuisines: List<Cuisine> = listOf(
         Cuisine("Italian", "\uD83C\uDDE9\uD83C\uDDF0", "Pasta, risotto & rustic classics"),
@@ -389,20 +413,41 @@ object RecipeData {
         ),
     )
 
-    fun byCuisine(cuisine: String): List<Recipe> =
-        recipes.filter { it.cuisine.equals(cuisine, ignoreCase = true) }
+    fun byCuisine(cuisine: String): List<Recipe> {
+        val all = apiRecipes.values + recipes
+        return all.filter { it.cuisine.equals(cuisine, ignoreCase = true) }
+            .distinctBy { it.id }
+    }
 
     fun byId(id: String): Recipe? =
-        dynamicRecipes[id] ?: recipes.find { it.id == id }
+        apiRecipes[id] ?: dynamicRecipes[id] ?: recipes.find { it.id == id }
 
-    val featured: List<Recipe> = recipes.take(3)
+    /**
+     * Featured recipes — prefer API recipes, fall back to seeds.
+     */
+    val featured: List<Recipe>
+        get() = if (apiRecipes.isNotEmpty()) apiRecipes.values.take(3) else recipes.take(3)
 
-    val trending: List<Recipe> = recipes.sortedByDescending { it.reviewCount }
+    /**
+     * Trending recipes — prefer API recipes, fall back to seeds.
+     */
+    val trending: List<Recipe>
+        get() = if (apiRecipes.isNotEmpty()) {
+            apiRecipes.values.toList()
+        } else {
+            recipes.sortedByDescending { it.reviewCount }
+        }
+
+    /**
+     * All recipes — API cache + seeds combined.
+     */
+    val all: List<Recipe>
+        get() = (apiRecipes.values + recipes + dynamicRecipes.values).distinctBy { it.id }
 
     fun search(query: String): List<Recipe> {
-        if (query.isBlank()) return recipes
+        if (query.isBlank()) return all
         val q = query.lowercase()
-        return recipes.filter {
+        return all.filter {
             it.title.lowercase().contains(q) ||
                 it.cuisine.lowercase().contains(q) ||
                 it.tags.any { tag -> tag.lowercase().contains(q) } ||

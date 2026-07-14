@@ -28,6 +28,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.rork.cookscope.data.RecipeData
+import com.rork.cookscope.data.RecipeDiscoveryService
 import com.rork.cookscope.data.model.Cuisine
 import com.rork.cookscope.data.model.Recipe
 import com.rork.cookscope.ui.components.RecipeCard
@@ -54,6 +60,28 @@ fun HomeScreen(
     onExploreClick: () -> Unit,
     onScanClick: () -> Unit,
 ) {
+    val discoveryService = remember { RecipeDiscoveryService() }
+    var isLoading by remember { mutableStateOf(true) }
+    var featuredRecipes by remember { mutableStateOf(RecipeData.featured) }
+    var trendingRecipes by remember { mutableStateOf(RecipeData.trending.take(4)) }
+
+    LaunchedEffect(Unit) {
+        isLoading = true
+        val result = discoveryService.loadRandomRecipes(10)
+        result.fold(
+            onSuccess = { recipes ->
+                if (recipes.isNotEmpty()) {
+                    featuredRecipes = recipes.take(3)
+                    trendingRecipes = recipes.take(4)
+                }
+            },
+            onFailure = {
+                // Fall back to seed data — already set as defaults
+            }
+        )
+        isLoading = false
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -76,7 +104,7 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                items(RecipeData.featured) { recipe ->
+                items(featuredRecipes) { recipe ->
                     Box(modifier = Modifier.width(280.dp)) {
                         RecipeCard(
                             recipe = recipe,
@@ -100,7 +128,7 @@ fun HomeScreen(
             Spacer(Modifier.height(28.dp))
             SectionHeader("Trending This Week", "Loved by 100K+ home chefs")
         }
-        items(RecipeData.trending.take(4)) { recipe ->
+        items(trendingRecipes) { recipe ->
             TrendingRecipeRow(recipe = recipe, onClick = { onRecipeClick(recipe.id) })
         }
     }

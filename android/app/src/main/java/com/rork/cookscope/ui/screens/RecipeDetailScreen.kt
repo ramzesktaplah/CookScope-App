@@ -35,6 +35,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.rork.cookscope.data.RecipeData
+import com.rork.cookscope.data.RecipeDiscoveryService
 import com.rork.cookscope.data.model.Ingredient
 import com.rork.cookscope.ui.theme.AmberGold
 import com.rork.cookscope.ui.theme.BlackBg
@@ -61,8 +63,27 @@ fun RecipeDetailScreen(
     onBack: () -> Unit,
     onStartCooking: (String) -> Unit,
 ) {
-    val recipe = remember(recipeId) { RecipeData.byId(recipeId) } ?: return
+    val discoveryService = remember { RecipeDiscoveryService() }
+    val cachedRecipe = remember(recipeId) { RecipeData.byId(recipeId) }
+    var recipe by remember(recipeId) { mutableStateOf(cachedRecipe) }
+    var isLoading by remember { mutableStateOf(false) }
     var isSaved by remember { mutableStateOf(false) }
+
+    // Fetch full recipe details from API if the cached version lacks ingredients/steps
+    LaunchedEffect(recipeId) {
+        if (recipe != null && recipe!!.ingredients.isEmpty() && recipe!!.steps.isEmpty()) {
+            isLoading = true
+            val result = discoveryService.getRecipeDetails(recipeId)
+            result.fold(
+                onSuccess = { fullRecipe -> recipe = fullRecipe },
+                onFailure = { /* keep cached version */ }
+            )
+            isLoading = false
+        }
+    }
+
+    if (recipe == null) return
+    val r = recipe!!
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
@@ -76,8 +97,8 @@ fun RecipeDetailScreen(
                     .height(340.dp)
             ) {
                 AsyncImage(
-                    model = recipe.imageUrl,
-                    contentDescription = recipe.title,
+                    model = r.imageUrl,
+                    contentDescription = r.title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -149,7 +170,7 @@ fun RecipeDetailScreen(
                         .align(Alignment.BottomStart)
                         .padding(20.dp)
                 ) {
-                    if (recipe.isPremium) {
+                    if (r.isPremium) {
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
@@ -166,7 +187,7 @@ fun RecipeDetailScreen(
                         Spacer(Modifier.height(8.dp))
                     }
                     Text(
-                        recipe.title,
+                        r.title,
                         style = MaterialTheme.typography.headlineLarge,
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
@@ -183,10 +204,10 @@ fun RecipeDetailScreen(
                     .padding(horizontal = 16.dp, vertical = 16.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
-                MetaStat(Icons.Default.Schedule, "${recipe.cookTimeMin}", "minutes")
-                MetaStat(Icons.Default.Restaurant, "${recipe.servings}", "servings")
-                MetaStat(Icons.Default.LocalFireDepartment, "${recipe.caloriesPerServing}", "kcal/srv")
-                MetaStat(Icons.Default.Star, String.format("%.1f", recipe.rating), "rating")
+                MetaStat(Icons.Default.Schedule, "${r.cookTimeMin}", "minutes")
+                MetaStat(Icons.Default.Restaurant, "${r.servings}", "servings")
+                MetaStat(Icons.Default.LocalFireDepartment, "${r.caloriesPerServing}", "kcal/srv")
+                MetaStat(Icons.Default.Star, String.format("%.1f", r.rating), "rating")
             }
         }
 
@@ -201,7 +222,7 @@ fun RecipeDetailScreen(
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    recipe.description,
+                    r.description,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -213,7 +234,7 @@ fun RecipeDetailScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        recipe.authorName,
+                        r.authorName,
                         style = MaterialTheme.typography.labelLarge,
                         color = GoldPrimary,
                         fontWeight = FontWeight.SemiBold,
@@ -222,7 +243,7 @@ fun RecipeDetailScreen(
                 // Tags
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    recipe.tags.forEach { tag ->
+                    r.tags.forEach { tag ->
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
@@ -256,9 +277,9 @@ fun RecipeDetailScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    NutritionCard("Protein", "${recipe.proteinG}g", Modifier.weight(1f), Color(0xFFE76F51))
-                    NutritionCard("Carbs", "${recipe.carbsG}g", Modifier.weight(1f), Color(0xFFE9C46A))
-                    NutritionCard("Fat", "${recipe.fatG}g", Modifier.weight(1f), Color(0xFF2A9D8F))
+                    NutritionCard("Protein", "${r.proteinG}g", Modifier.weight(1f), Color(0xFFE76F51))
+                    NutritionCard("Carbs", "${r.carbsG}g", Modifier.weight(1f), Color(0xFFE9C46A))
+                    NutritionCard("Fat", "${r.fatG}g", Modifier.weight(1f), Color(0xFF2A9D8F))
                 }
             }
         }
@@ -274,12 +295,12 @@ fun RecipeDetailScreen(
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    "For ${recipe.servings} servings",
+                    "For ${r.servings} servings",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(12.dp))
-                recipe.ingredients.forEach { ingredient ->
+                r.ingredients.forEach { ingredient ->
                     IngredientRow(ingredient)
                 }
             }
@@ -296,7 +317,7 @@ fun RecipeDetailScreen(
                     fontWeight = FontWeight.Bold,
                 )
                 Spacer(Modifier.height(10.dp))
-                recipe.tips.forEach { tip ->
+                r.tips.forEach { tip ->
                     Row(
                         modifier = Modifier.padding(vertical = 6.dp),
                     ) {
@@ -320,7 +341,7 @@ fun RecipeDetailScreen(
             Spacer(Modifier.height(28.dp))
             Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                 Button(
-                    onClick = { onStartCooking(recipe.id) },
+                    onClick = { onStartCooking(r.id) },
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
