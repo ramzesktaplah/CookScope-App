@@ -15,10 +15,6 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Service for fetching recipes from recipeapi.io — a REST API with 50,000+ recipes.
@@ -53,7 +49,7 @@ class RecipeApiService {
             }
             val body = response.bodyText()
             val listResponse = jsonParser.decodeFromString<RecipeListResponse>(body)
-            val recipes = listResponse.data.map { mapSummaryToRecipe(it) }
+            val recipes = listResponse.data.map { mapApiRecipeToRecipe(it) }
             Result.success(recipes)
         } catch (e: Exception) {
             Result.failure(e)
@@ -79,7 +75,7 @@ class RecipeApiService {
             }
             val body = response.bodyText()
             val listResponse = jsonParser.decodeFromString<RecipeListResponse>(body)
-            val recipes = listResponse.data.map { mapSummaryToRecipe(it) }
+            val recipes = listResponse.data.map { mapApiRecipeToRecipe(it) }
             Result.success(recipes)
         } catch (e: Exception) {
             Result.failure(e)
@@ -100,7 +96,7 @@ class RecipeApiService {
             val detailResponse = jsonParser.decodeFromString<RecipeDetailResponse>(body)
             val detail = detailResponse.data
                 ?: return Result.failure(Exception("Recipe not found"))
-            Result.success(mapDetailToRecipe(detail))
+            Result.success(mapApiRecipeToRecipe(detail))
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -108,11 +104,11 @@ class RecipeApiService {
 
     /**
      * Get random recipes for discovery on the Home screen.
+     * The API returns one random recipe per call.
      */
     suspend fun getRandomRecipes(count: Int = 10): Result<List<Recipe>> {
         return try {
             val recipes = mutableListOf<Recipe>()
-            // Fetch random recipes one at a time (API returns single random recipe per call)
             val fetchCount = minOf(count, 10)
             for (i in 0 until fetchCount) {
                 val url = "$baseUrl/recipes/random?lang=en"
@@ -121,7 +117,7 @@ class RecipeApiService {
                     val body = response.bodyText()
                     val detailResponse = jsonParser.decodeFromString<RecipeDetailResponse>(body)
                     detailResponse.data?.let { detail ->
-                        recipes.add(mapDetailToRecipe(detail))
+                        recipes.add(mapApiRecipeToRecipe(detail))
                     }
                 }
             }
@@ -130,6 +126,24 @@ class RecipeApiService {
             } else {
                 Result.success(recipes)
             }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Fetch available ingredients from the API (for autocomplete suggestions).
+     */
+    suspend fun getIngredients(page: Int = 1, perPage: Int = 50): Result<List<ApiIngredientInfo>> {
+        return try {
+            val url = "$baseUrl/ingredients?lang=en&page=$page&per_page=$perPage"
+            val response = makeGetRequest(url)
+            if (!response.isSuccessful()) {
+                return Result.failure(Exception("Ingredients fetch failed: ${response.statusCode()}"))
+            }
+            val body = response.bodyText()
+            val listResponse = jsonParser.decodeFromString<IngredientsListResponse>(body)
+            Result.success(listResponse.data)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -146,104 +160,54 @@ class RecipeApiService {
         )
     }
 
-    private fun mapSummaryToRecipe(summary: ApiRecipeSummary): Recipe {
-        val id = extractId(summary.id)
-        val nutrition = summary.nutrition
-        val meta = summary.meta
-        val cookTimeMin = parseDurationToMinutes(meta?.totalTime ?: meta?.activeTime)
-        val servings = meta?.yieldCount ?: 4
-        val imageUrl = summary.imageUrl ?: summary.image ?: getPlaceholderImage(id)
-        val difficulty = parseDifficulty(summary.difficulty)
-        val tags = summary.tags.ifEmpty { summary.dietary?.flags ?: emptyList() }
+    /**
+     * Map an ApiRecipe from recipeapi.io to the app's Recipe model.
+     * Both list and detail endpoints return the same full structure.
+     */
+    private fun mapApiRecipeToRecipe(api: ApiRecipe): Recipe {
+        val id = api.id.toString()
+        val cookTimeMin = api.cookTime + api.prepTime
+        val imageUrl = getPlaceholderImage(id)
+        val difficulty = parseDifficulty(api.difficulty)
+
+        val ingredients = api.ingredients.map { ing ->
+            val amountStr = buildAmountString(ing.quantity, ing.unit)
+            Ingredient(
+                name = ing.name,
+                amount = amountStr,
+                category = mapIngredientCategory(ing.category),
+            )
+        }
+
+        val steps = api.instructions.mapIndexed { idx, instruction ->
+            CookStep(
+                index = idx + 1,
+                title = "Step ${idx + 1}",
+                instruction = instruction,
+            )
+        }
 
         return Recipe(
             id = "api_$id",
-            title = summary.name ?: "Unknown Recipe",
-            description = summary.description ?: "",
-            cuisine = summary.cuisine ?: summary.category ?: "Various",
+            title = api.name,
+            description = api.description,
+            cuisine = api.cuisine.replaceFirstChar { it.uppercase() },
             difficulty = difficulty,
             cookTimeMin = cookTimeMin,
-            servings = servings,
-            caloriesPerServing = nutrition?.calories ?: 0,
-            proteinG = nutrition?.protein ?: 0,
-            carbsG = nutrition?.carbohydrates ?: 0,
-            fatG = nutrition?.fat ?: 0,
+            servings = api.servings,
+            caloriesPerServing = api.caloriesPerServing,
+            proteinG = api.protein,
+            carbsG = 0,
+            fatG = 0,
             imageUrl = imageUrl,
-            tags = tags,
-            ingredients = emptyList(),
-            steps = emptyList(),
+            tags = api.dietaryTags,
+            ingredients = ingredients,
+            steps = steps,
             tips = emptyList(),
             rating = 4.5f,
             reviewCount = 0,
             authorName = "Recipe API",
         )
-    }
-
-    private fun mapDetailToRecipe(detail: ApiRecipeDetail): Recipe {
-        val id = extractId(detail.id)
-        val nutrition = detail.nutrition
-        val meta = detail.meta
-        val cookTimeMin = parseDurationToMinutes(meta?.totalTime ?: meta?.activeTime)
-        val servings = meta?.yieldCount ?: 4
-        val imageUrl = detail.imageUrl ?: detail.image ?: getPlaceholderImage(id)
-        val difficulty = parseDifficulty(detail.difficulty)
-        val tags = detail.tags.ifEmpty { detail.dietary?.flags ?: emptyList() }
-
-        val ingredients = detail.ingredients.flatMap { group ->
-            group.items.map { item ->
-                val amountStr = buildAmountString(item.quantity, item.unit, item.preparation)
-                Ingredient(
-                    name = item.name,
-                    amount = amountStr,
-                    category = guessIngredientCategory(item.name),
-                )
-            }
-        }
-
-        val steps = detail.instructions.mapIndexed { idx, instr ->
-            CookStep(
-                index = instr.step.takeIf { it > 0 } ?: (idx + 1),
-                title = instr.title ?: instr.phase ?: "Step ${idx + 1}",
-                instruction = instr.instruction,
-                durationMin = parseDurationToMinutes(instr.duration),
-                technique = instr.technique,
-                tip = instr.tip ?: instr.donenessCue,
-            )
-        }
-
-        val tips = detail.chefNotes.ifEmpty {
-            detail.troubleshooting.map { "${it.problem}: ${it.solution}" }
-        }
-
-        return Recipe(
-            id = "api_$id",
-            title = detail.name ?: "Unknown Recipe",
-            description = detail.description ?: "",
-            cuisine = detail.cuisine ?: detail.category ?: "Various",
-            difficulty = difficulty,
-            cookTimeMin = cookTimeMin,
-            servings = servings,
-            caloriesPerServing = nutrition?.calories ?: 0,
-            proteinG = nutrition?.protein ?: 0,
-            carbsG = nutrition?.carbohydrates ?: 0,
-            fatG = nutrition?.fat ?: 0,
-            imageUrl = imageUrl,
-            tags = tags,
-            ingredients = ingredients,
-            steps = steps,
-            tips = tips,
-            rating = 4.5f,
-            reviewCount = 0,
-            authorName = "Recipe API",
-        )
-    }
-
-    private fun extractId(element: JsonElement?): String {
-        return when (element) {
-            is JsonPrimitive -> element.contentOrNull ?: ""
-            null -> ""
-            else -> element.toString().removeSurrounding("\"")
-        }
     }
 
     private fun parseDifficulty(value: String?): Difficulty {
@@ -256,21 +220,7 @@ class RecipeApiService {
         }
     }
 
-    private fun parseDurationToMinutes(duration: String?): Int {
-        if (duration.isNullOrBlank()) return 0
-        // Parse ISO 8601 duration like "PT45M" or "PT2H30M"
-        val regex = Regex("""PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?""")
-        val match = regex.find(duration)
-        if (match != null) {
-            val hours = match.groupValues.getOrNull(1)?.toIntOrNull() ?: 0
-            val minutes = match.groupValues.getOrNull(2)?.toIntOrNull() ?: 0
-            return hours * 60 + minutes
-        }
-        // Try plain number (assume minutes)
-        return duration.toIntOrNull() ?: 0
-    }
-
-    private fun buildAmountString(quantity: Float?, unit: String?, preparation: String?): String {
+    private fun buildAmountString(quantity: Float?, unit: String?): String {
         val parts = mutableListOf<String>()
         if (quantity != null) {
             parts.add(if (quantity == quantity.toLong().toFloat()) {
@@ -280,18 +230,18 @@ class RecipeApiService {
             })
         }
         if (!unit.isNullOrBlank()) parts.add(unit)
-        if (!preparation.isNullOrBlank()) parts.add("($preparation)")
         return parts.joinToString(" ")
     }
 
-    private fun guessIngredientCategory(name: String): IngredientCategory {
-        val lower = name.lowercase()
+    private fun mapIngredientCategory(apiCategory: String): IngredientCategory {
+        val lower = apiCategory.lowercase()
         return when {
-            listOf("chicken", "beef", "pork", "lamb", "fish", "salmon", "shrimp", "tofu", "egg", "turkey", "bacon", "sausage", "duck", "cod", "tuna").any { lower.contains(it) } -> IngredientCategory.PROTEIN
-            listOf("milk", "cream", "cheese", "butter", "yogurt", "parmesan", "mozzarella", "feta").any { lower.contains(it) } -> IngredientCategory.DAIRY
-            listOf("rice", "pasta", "flour", "bread", "noodle", "quinoa", "oats", "couscous", "tortilla", "bun").any { lower.contains(it) } -> IngredientCategory.GRAIN
-            listOf("salt", "pepper", "cumin", "paprika", "oregano", "basil", "thyme", "rosemary", "cinnamon", "turmeric", "chili", "powder", "spice").any { lower.contains(it) } -> IngredientCategory.SPICE
-            else -> IngredientCategory.PRODUCE
+            listOf("poultry", "meat", "seafood", "egg", "fish").any { lower.contains(it) } -> IngredientCategory.PROTEIN
+            listOf("dairy", "cheese").any { lower.contains(it) } -> IngredientCategory.DAIRY
+            listOf("grain", "bread", "pasta", "noodle", "flour", "rice").any { lower.contains(it) } -> IngredientCategory.GRAIN
+            listOf("spice", "herb", "condiment", "oil").any { lower.contains(it) } -> IngredientCategory.SPICE
+            listOf("vegetable", "fruit", "mushroom").any { lower.contains(it) } -> IngredientCategory.PRODUCE
+            else -> IngredientCategory.PANTRY
         }
     }
 
@@ -301,6 +251,10 @@ class RecipeApiService {
             "https://images.unsplash.com/photo-1476124369496-e5bda7f4d1a1?w=800&q=80",
             "https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=800&q=80",
             "https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=800&q=80",
+            "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=800&q=80",
+            "https://images.unsplash.com/photo-1551782450-a2132b4ba21d?w=800&q=80",
+            "https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=800&q=80",
+            "https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=800&q=80",
         )
         val index = if (id.isNotEmpty()) id.first().code % images.size else 0
         return images[index]
