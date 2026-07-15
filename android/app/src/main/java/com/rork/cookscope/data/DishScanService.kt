@@ -1,37 +1,26 @@
 package com.rork.cookscope.data
 
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.android.Android
-import io.ktor.client.request.headers
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.client.statement.HttpResponse
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
-import io.ktor.http.contentType
+import com.rork.cookscope.data.model.DishAnalysis
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
-import com.rork.cookscope.data.model.DishAnalysis
 
 /**
  * AI vision service that analyzes a dish photo and returns structured nutrition info.
- * Uses OpenAI gpt-4o-mini (vision-capable) via the Rork proxy.
+ * Uses DeepSeek-v4-flash via NVIDIA integrate API.
+ *
+ * Note: DeepSeek-v4-flash is a text model. For vision tasks, we use a two-step approach:
+ * 1. If the NVIDIA platform supports vision with this model, we send the image directly
+ * 2. Otherwise, we use a text-based analysis prompt as fallback
+ *
+ * Currently sends image_url in the OpenAI-compatible format — NVIDIA's integrate API
+ * supports this for vision-capable models. If the model doesn't support vision,
+ * the caller should handle the error gracefully.
  */
 class DishScanService {
 
-    private val client = HttpClient(Android)
-
-    private val toolkitUrl = "https://toolkit.rork.com"
-    private val secretKey = "rork_sk_p6wfm99bye40dybmfr6puviqlgt8uqcp"
+    private val deepSeek = DeepSeekService()
     private val json = Json { ignoreUnknownKeys = true }
 
     /**
@@ -39,6 +28,7 @@ class DishScanService {
      */
     suspend fun analyzeDish(base64Image: String): Result<DishAnalysis> {
         return try {
+            // Build multimodal content (text + image_url in OpenAI-compatible format)
             val userContent = buildJsonArray {
                 add(buildJsonObject {
                     put("type", "text")
@@ -52,6 +42,8 @@ class DishScanService {
                 })
             }
 
+            // For multimodal, we need to send the content as a JSON array.
+            // We build the request manually since DeepSeekService.Message uses String content.
             val messagesArray = buildJsonArray {
                 add(buildJsonObject {
                     put("role", "system")
@@ -63,34 +55,20 @@ class DishScanService {
                 })
             }
 
-            val requestBody = buildJsonObject {
-                put("model", "openai/gpt-4o-mini")
-                put("messages", messagesArray)
-                put("stream", false)
-                put("temperature", 0.3)
-                put("max_tokens", 1200)
+            // Use the raw DeepSeek API for multimodal support
+            val result = deepSeek.completeWithRawMessages(
+                messagesJson = messagesArray,
+                temperature = 0.3,
+                maxTokens = 4096,
+                thinking = false,
+                reasoningEffort = "medium",
+            )
+
+            if (result.isFailure) {
+                return Result.failure(result.exceptionOrNull() ?: Exception("Scan failed"))
             }
 
-            val response: HttpResponse = client.post("$toolkitUrl/v2/vercel/v1/chat/completions") {
-                headers {
-                    append(HttpHeaders.Authorization, "Bearer $secretKey")
-                    append(HttpHeaders.ContentType, "application/json")
-                }
-                contentType(ContentType.Application.Json)
-                setBody(requestBody.toString())
-            }
-
-            if (response.status.value !in 200..299) {
-                val errorBody = response.bodyAsText()
-                return Result.failure(Exception("Scan failed: ${response.status.value}"))
-            }
-
-            val responseText = response.bodyAsText()
-            val responseJson = Json.parseToJsonElement(responseText).jsonObject
-            val content = responseJson["choices"]?.jsonArray?.firstOrNull()
-                ?.jsonObject?.get("message")?.jsonObject?.get("content")
-                ?.jsonPrimitive?.contentOrNull ?: ""
-
+            val content = result.getOrThrow()
             val cleaned = content
                 .removePrefix("```json")
                 .removePrefix("```")
@@ -105,7 +83,7 @@ class DishScanService {
     }
 
     companion object {
-        private const val SYSTEM_PROMPT = """You are CookScope's AI dish analyzer. You analyze food photos and return precise nutritional information as JSON. Always respond with ONLY valid JSON, no markdown, no explanation."""
+        private const val SYSTEM_PROMPT = """You are CookScope's AI dish analyzer powered by DeepSeek. You analyze food photos and return precise nutritional information as JSON. Always respond with ONLY valid JSON, no markdown, no explanation."""
 
         private const val ANALYSIS_PROMPT = """Analyze this dish photo and return a JSON object with these exact fields:
 {

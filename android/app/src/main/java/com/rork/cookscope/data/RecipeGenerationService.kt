@@ -1,40 +1,26 @@
 package com.rork.cookscope.data
 
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.android.Android
-import io.ktor.client.request.headers
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.client.statement.HttpResponse
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
-import io.ktor.http.contentType
+import com.rork.cookscope.data.model.CookStep
+import com.rork.cookscope.data.model.Difficulty
+import com.rork.cookscope.data.model.Ingredient
+import com.rork.cookscope.data.model.IngredientCategory
+import com.rork.cookscope.data.model.Recipe
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.put
-import com.rork.cookscope.data.model.Recipe
-import com.rork.cookscope.data.model.Ingredient
-import com.rork.cookscope.data.model.CookStep
-import com.rork.cookscope.data.model.Difficulty
-import com.rork.cookscope.data.model.IngredientCategory
 
 /**
- * AI recipe generation service.
- * Sends the user's ingredients and preferences to the AI and returns a structured Recipe.
+ * AI recipe generation service powered by DeepSeek-v4-flash via NVIDIA.
+ * Sends the user's ingredients and preferences to DeepSeek and returns a structured Recipe.
+ * Uses thinking/reasoning mode for higher-quality recipe creation.
  */
 class RecipeGenerationService {
 
-    private val client = HttpClient(Android)
-    private val toolkitUrl = "https://toolkit.rork.com"
-    private val secretKey = "rork_sk_p6wfm99bye40dybmfr6puviqlgt8uqcp"
+    private val deepSeek = DeepSeekService()
     private val json = Json { ignoreUnknownKeys = true }
 
     /**
@@ -88,44 +74,30 @@ Use the provided ingredients and supplement with common pantry items as needed.
 Ingredient categories must be one of: PRODUCE, PROTEIN, DAIRY, GRAIN, PANTRY, SPICE.
 Return ONLY the JSON, no markdown, no explanation."""
 
-            val messagesArray = buildJsonArray {
-                add(buildJsonObject {
-                    put("role", "system")
-                    put("content", "You are CookScope's AI recipe generator. You create detailed, practical recipes based on available ingredients and user preferences. Always respond with ONLY valid JSON, no markdown.")
-                })
-                add(buildJsonObject {
-                    put("role", "user")
-                    put("content", userMessage)
-                })
+            val messages = listOf(
+                DeepSeekService.Message(
+                    role = "system",
+                    content = "You are CookScope's AI recipe generator powered by DeepSeek. You create detailed, practical recipes based on available ingredients and user preferences. Always respond with ONLY valid JSON, no markdown.",
+                ),
+                DeepSeekService.Message(
+                    role = "user",
+                    content = userMessage,
+                ),
+            )
+
+            val result = deepSeek.chat(
+                messages = messages,
+                temperature = 0.8,
+                maxTokens = 8192,
+                thinking = true,
+                reasoningEffort = "high",
+            )
+
+            if (result.isFailure) {
+                return Result.failure(result.exceptionOrNull() ?: Exception("Generation failed"))
             }
 
-            val requestBody = buildJsonObject {
-                put("model", "openai/gpt-4o-mini")
-                put("messages", messagesArray)
-                put("stream", false)
-                put("temperature", 0.8)
-                put("max_tokens", 2000)
-            }
-
-            val response: HttpResponse = client.post("$toolkitUrl/v2/vercel/v1/chat/completions") {
-                headers {
-                    append(HttpHeaders.Authorization, "Bearer $secretKey")
-                    append(HttpHeaders.ContentType, "application/json")
-                }
-                contentType(ContentType.Application.Json)
-                setBody(requestBody.toString())
-            }
-
-            if (response.status.value !in 200..299) {
-                return Result.failure(Exception("Generation failed: ${response.status.value}"))
-            }
-
-            val responseText = response.bodyAsText()
-            val responseJson = Json.parseToJsonElement(responseText).jsonObject
-            val content = responseJson["choices"]?.jsonArray?.firstOrNull()
-                ?.jsonObject?.get("message")?.jsonObject?.get("content")
-                ?.jsonPrimitive?.contentOrNull ?: ""
-
+            val content = result.getOrThrow()
             val cleaned = content
                 .removePrefix("```json")
                 .removePrefix("```")
@@ -200,5 +172,9 @@ Return ONLY the JSON, no markdown, no explanation."""
             authorName = obj["authorName"]?.jsonPrimitive?.contentOrNull ?: "CookScope AI",
             isPremium = isPremium,
         )
+    }
+
+    fun close() {
+        deepSeek.close()
     }
 }

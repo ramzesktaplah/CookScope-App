@@ -1,44 +1,21 @@
 package com.rork.cookscope.data
 
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.android.Android
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.request.post
-import io.ktor.client.request.headers
-import io.ktor.client.request.setBody
-import io.ktor.client.statement.HttpResponse
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
-import io.ktor.http.contentType
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.put
 
 /**
- * AI chat service that talks to the Rork proxy (Vercel AI Gateway).
- * Uses OpenAI-compatible chat completions endpoint with gpt-4o-mini.
+ * AI chat service powered by DeepSeek-v4-flash via NVIDIA integrate API.
+ * Uses USDA FoodData Central for factual nutrition data to ground answers.
+ *
+ * Flow:
+ * 1. User asks a question
+ * 2. If the question involves nutrition facts (calories, protein, comparison),
+ *    USDA FoodData Central is queried first for reliable data
+ * 3. DeepSeek formats the final answer using the USDA data as context
  */
 class ChatService {
 
-    private val client = HttpClient(Android) {
-        install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys = true })
-        }
-    }
-
-    private val toolkitUrl = "https://toolkit.rork.com"
-    private val secretKey = "rork_sk_p6wfm99bye40dybmfr6puviqlgt8uqcp"
+    private val deepSeek = DeepSeekService()
+    private val usda = UsdaFoodService()
 
     @Serializable
     data class ChatMessage(
@@ -48,70 +25,172 @@ class ChatService {
 
     /**
      * Sends conversation history to the AI and returns the assistant's reply.
+     * Automatically detects nutrition-related queries and enriches them with
+     * USDA FoodData Central data before sending to DeepSeek.
      */
     suspend fun sendMessage(
         messages: List<ChatMessage>,
-        onToken: (String) -> Unit
+        onToken: (String) -> Unit,
     ): Result<String> {
         return try {
-            val messagesArray = buildJsonArray {
-                // System prompt — culinary assistant persona
-                add(buildJsonObject {
-                    put("role", "system")
-                    put("content", SYSTEM_PROMPT)
-                })
+            val lastUserMessage = messages.lastOrNull { it.role == "user" }?.content ?: ""
+
+            // Check if this is a nutrition-related query
+            val nutritionContext = fetchNutritionContext(lastUserMessage)
+
+            // Build the system prompt with optional USDA context
+            val systemPrompt = if (nutritionContext != null) {
+                "$SYSTEM_PROMPT\n\nYou have access to factual nutrition data from the USDA FoodData Central database. Use the provided data to ground your answer in real nutritional information.\n\n$nutritionContext"
+            } else {
+                SYSTEM_PROMPT
+            }
+
+            val deepSeekMessages = buildList {
+                add(DeepSeekService.Message(role = "system", content = systemPrompt))
                 messages.forEach { msg ->
-                    add(buildJsonObject {
-                        put("role", msg.role)
-                        put("content", msg.content)
-                    })
+                    add(DeepSeekService.Message(role = msg.role, content = msg.content))
                 }
             }
 
-            val requestBody = buildJsonObject {
-                put("model", "openai/gpt-4o-mini")
-                put("messages", messagesArray)
-                put("stream", false)
-                put("temperature", 0.7)
-                put("max_tokens", 800)
-            }
+            val result = deepSeek.chat(
+                messages = deepSeekMessages,
+                temperature = 0.7,
+                maxTokens = 4096,
+                thinking = false,
+                reasoningEffort = "medium",
+            )
 
-            val response: HttpResponse = client.post("$toolkitUrl/v2/vercel/v1/chat/completions") {
-                headers {
-                    append(HttpHeaders.Authorization, "Bearer $secretKey")
-                    append(HttpHeaders.ContentType, "application/json")
-                }
-                contentType(ContentType.Application.Json)
-                setBody(requestBody.toString())
-            }
-
-            if (response.status.value !in 200..299) {
-                val errorBody = response.bodyAsText()
-                return Result.failure(Exception("AI request failed: ${response.status.value}"))
-            }
-
-            val responseText = response.bodyAsText()
-            val json = Json.parseToJsonElement(responseText).jsonObject
-            val content = json["choices"]?.jsonArray?.firstOrNull()
-                ?.jsonObject?.get("message")?.jsonObject?.get("content")
-                ?.jsonPrimitive?.contentOrNull ?: ""
-
-            onToken(content)
-            Result.success(content)
+            result.fold(
+                onSuccess = { content ->
+                    onToken(content)
+                    Result.success(content)
+                },
+                onFailure = { Result.failure(it) }
+            )
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
+    /**
+     * Detects if the user's message is a nutrition-related query and fetches
+     * relevant data from USDA FoodData Central.
+     *
+     * Returns formatted nutrition context string, or null if not a nutrition query.
+     */
+    private suspend fun fetchNutritionContext(userMessage: String): String? {
+        val lower = userMessage.lowercase()
+
+        // Keywords that indicate a nutrition question
+        val nutritionKeywords = listOf(
+            "calories", "protein", "carbs", "carbohydrate", "fat", "fiber",
+            "sugar", "sodium", "nutrition", "nutritional", "healthier", "healthy",
+            "vitamin", "iron", "calcium", "potassium", "cholesterol",
+            "macros", "macro", "nutrient", "compare", "vs", "versus",
+            "how many calories", "nutritional value", "nutrition facts",
+        )
+
+        val isNutritionQuery = nutritionKeywords.any { lower.contains(it) }
+        if (!isNutritionQuery) return null
+
+        // Try to extract food names from the query
+        val foodNames = extractFoodNames(userMessage)
+        if (foodNames.isEmpty()) return null
+
+        // Fetch nutrition data for each food
+        val nutritionMap = mutableMapOf<String, UsdaFoodService.FoodNutrition>()
+        for (food in foodNames) {
+            val result = usda.getFoodNutrition(food)
+            result.onSuccess { nutrition -> nutritionMap[food] = nutrition }
+        }
+
+        if (nutritionMap.isEmpty()) return null
+
+        // Format the nutrition data for the DeepSeek prompt
+        return buildString {
+            appendLine("=== USDA FoodData Central Nutrition Data ===")
+            appendLine()
+            for ((name, nutrition) in nutritionMap) {
+                appendLine(usda.formatNutritionForPrompt(name, nutrition))
+                appendLine()
+            }
+            appendLine("Use this factual data to answer the user's question. Explain the differences in simple language.")
+        }
+    }
+
+    /**
+     * Extracts food names from a user query.
+     * Handles patterns like "is X healthier than Y", "nutrition of X", "calories in X and Y".
+     */
+    private fun extractFoodNames(message: String): List<String> {
+        val lower = message.lowercase()
+
+        // Pattern: "is X healthier than Y" / "X vs Y" / "X versus Y" / "X or Y"
+        val comparisonPatterns = listOf(" healthier than ", " vs ", " versus ", " or ", " compared to ", " compare ")
+        for (pattern in comparisonPatterns) {
+            if (lower.contains(pattern)) {
+                val parts = lower.split(pattern).filter { it.isNotBlank() }
+                if (parts.size >= 2) {
+                    // Clean up the food names — remove question words and punctuation
+                    val food1 = cleanFoodName(parts[0])
+                    val food2 = cleanFoodName(parts[1])
+                    if (food1.isNotEmpty() && food2.isNotEmpty()) {
+                        return listOf(food1, food2)
+                    }
+                }
+            }
+        }
+
+        // Pattern: "calories in X" / "nutrition of X" / "nutrition facts for X"
+        val prefixPatterns = listOf("calories in ", "nutrition of ", "nutrition facts for ", "nutrition facts of ", "nutritional value of ", "macros for ", "macros in ")
+        for (prefix in prefixPatterns) {
+            if (lower.contains(prefix)) {
+                val after = lower.substringAfter(prefix).trim()
+                val foodName = cleanFoodName(after)
+                if (foodName.isNotEmpty()) return listOf(foodName)
+            }
+        }
+
+        // Pattern: "how many calories in X"
+        if (lower.contains("how many calories")) {
+            val after = lower.substringAfter("calories").removePrefix(" in ").removePrefix(" are in ").trim()
+            val foodName = cleanFoodName(after)
+            if (foodName.isNotEmpty()) return listOf(foodName)
+        }
+
+        return emptyList()
+    }
+
+    /**
+     * Cleans a raw food name from a user query — removes question marks,
+     * trailing punctuation, and common non-food words.
+     */
+    private fun cleanFoodName(raw: String): String {
+        return raw
+            .replace(Regex("[?#.,!]"), "")
+            .replace(Regex("\\b(a|an|the|is|are|which|what|has|have|more|less|better|worse)\\b"), "")
+            .trim()
+            .replace(Regex("\\s+"), " ")
+            .takeIf { it.isNotBlank() && it.length > 1 } ?: ""
+    }
+
+    fun close() {
+        deepSeek.close()
+        usda.close()
+    }
+
     companion object {
-        const val SYSTEM_PROMPT = """You are CookScope, a warm and expert culinary assistant. You help home cooks with:
+        const val SYSTEM_PROMPT = """You are CookScope, a warm and expert culinary assistant powered by DeepSeek. You help home cooks with:
 - Recipe suggestions based on ingredients they have
 - Cooking techniques and tips
 - Ingredient substitutions
 - Meal planning ideas
 - Dietary restriction guidance
 - Flavor pairings and seasoning advice
+- Nutrition information and food comparisons
 
-Keep responses concise, practical, and encouraging. Use brief paragraphs or short lists. When suggesting recipes, include key ingredients and a quick method overview. Always be food-safety conscious. If asked about non-food topics, gently redirect to cooking."""
+Keep responses concise, practical, and encouraging. Use brief paragraphs or short lists. When suggesting recipes, include key ingredients and a quick method overview. Always be food-safety conscious. If asked about non-food topics, gently redirect to cooking.
+
+When nutrition data from USDA FoodData Central is provided, use it to give accurate, specific nutritional comparisons. Present the data in a clear, easy-to-understand way for home cooks."""
     }
 }
