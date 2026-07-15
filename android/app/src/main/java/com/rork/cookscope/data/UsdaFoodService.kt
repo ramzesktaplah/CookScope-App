@@ -1,6 +1,5 @@
 package com.rork.cookscope.data
 
-import com.rork.cookscope.BuildConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -17,7 +16,6 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -27,6 +25,8 @@ import kotlinx.serialization.json.put
  * Used alongside DeepSeek to ground chatbot answers in reliable data.
  *
  * API docs: https://fdc.nal.usda.gov/api-guide.html
+ * Uses the public DEMO_KEY which has 1,000 requests/hour rate limit.
+ * For production, swap with a registered API key from https://fdc.nal.usda.gov/api-key-signup
  */
 class UsdaFoodService {
 
@@ -37,7 +37,7 @@ class UsdaFoodService {
     }
 
     private val baseUrl = "https://api.nal.usda.gov/fdc/v1"
-    private val apiKey = BuildConfig.USDA_API_KEY
+    private val apiKey = "DEMO_KEY"
     private val json = Json { ignoreUnknownKeys = true }
 
     // In-memory cache for common food lookups

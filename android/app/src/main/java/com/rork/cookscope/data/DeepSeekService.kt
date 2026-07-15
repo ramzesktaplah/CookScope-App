@@ -1,6 +1,5 @@
 package com.rork.cookscope.data
 
-import com.rork.cookscope.BuildConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -26,9 +25,12 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 /**
- * Shared NVIDIA DeepSeek API client.
- * Uses deepseek-ai/deepseek-v4-flash via integrate.api.nvidia.com.
- * Supports thinking/reasoning mode for higher-quality outputs.
+ * Shared DeepSeek API client via the Rork AI Gateway proxy.
+ * Uses deepseek/deepseek-v4-flash model — a 284B MoE with 13B activated parameters,
+ * optimized for fast coding and agents with 1M-token context.
+ *
+ * Routed through the Rork toolkit proxy which handles authentication and billing.
+ * Supported parameters: max_tokens, temperature, stop, tools, tool_choice, reasoning, include_reasoning
  */
 class DeepSeekService {
 
@@ -38,8 +40,8 @@ class DeepSeekService {
         }
     }
 
-    private val baseUrl = "https://integrate.api.nvidia.com/v1"
-    private val apiKey = BuildConfig.NVIDIA_API_KEY
+    private val toolkitUrl = "https://toolkit.rork.com"
+    private val secretKey = "rork_sk_p6wfm99bye40dybmfr6puviqlgt8uqcp"
 
     @Serializable
     data class Message(
@@ -85,18 +87,18 @@ class DeepSeekService {
                 put("top_p", 0.95)
                 put("max_tokens", maxTokens)
                 put("stream", false)
-                // NVIDIA-specific: enables thinking mode for DeepSeek
-                put("chat_template_kwargs", buildJsonObject {
-                    put("thinking", thinking)
-                    put("reasoning_effort", reasoningEffort)
-                })
+                if (thinking) {
+                    put("reasoning", buildJsonObject {
+                        put("effort", reasoningEffort)
+                        put("include", true)
+                    })
+                }
             }
 
-            val response: HttpResponse = client.post("$baseUrl/chat/completions") {
+            val response: HttpResponse = client.post("$toolkitUrl/v2/vercel/v1/chat/completions") {
                 headers {
-                    append(HttpHeaders.Authorization, "Bearer $apiKey")
+                    append(HttpHeaders.Authorization, "Bearer $secretKey")
                     append(HttpHeaders.ContentType, "application/json")
-                    append(HttpHeaders.Accept, "application/json")
                 }
                 contentType(ContentType.Application.Json)
                 setBody(requestBody.toString())
@@ -104,7 +106,7 @@ class DeepSeekService {
 
             if (response.status.value !in 200..299) {
                 val errorBody = response.bodyAsText()
-                return Result.failure(Exception("DeepSeek request failed: ${response.status.value}"))
+                return Result.failure(Exception("DeepSeek request failed: ${response.status.value} - $errorBody"))
             }
 
             val responseText = response.bodyAsText()
@@ -144,17 +146,18 @@ class DeepSeekService {
                 put("top_p", 0.95)
                 put("max_tokens", maxTokens)
                 put("stream", false)
-                put("chat_template_kwargs", buildJsonObject {
-                    put("thinking", thinking)
-                    put("reasoning_effort", reasoningEffort)
-                })
+                if (thinking) {
+                    put("reasoning", buildJsonObject {
+                        put("effort", reasoningEffort)
+                        put("include", true)
+                    })
+                }
             }
 
-            val response: HttpResponse = client.post("$baseUrl/chat/completions") {
+            val response: HttpResponse = client.post("$toolkitUrl/v2/vercel/v1/chat/completions") {
                 headers {
-                    append(HttpHeaders.Authorization, "Bearer $apiKey")
+                    append(HttpHeaders.Authorization, "Bearer $secretKey")
                     append(HttpHeaders.ContentType, "application/json")
-                    append(HttpHeaders.Accept, "application/json")
                 }
                 contentType(ContentType.Application.Json)
                 setBody(requestBody.toString())
@@ -162,7 +165,7 @@ class DeepSeekService {
 
             if (response.status.value !in 200..299) {
                 val errorBody = response.bodyAsText()
-                return Result.failure(Exception("DeepSeek request failed: ${response.status.value}"))
+                return Result.failure(Exception("DeepSeek request failed: ${response.status.value} - $errorBody"))
             }
 
             val responseText = response.bodyAsText()
@@ -196,6 +199,6 @@ class DeepSeekService {
     }
 
     companion object {
-        private const val MODEL = "deepseek-ai/deepseek-v4-flash"
+        private const val MODEL = "deepseek/deepseek-v4-flash"
     }
 }

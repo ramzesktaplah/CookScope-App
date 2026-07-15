@@ -15,9 +15,6 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
-
-        buildConfigField("String", "NVIDIA_API_KEY", "\"${System.getenv("NVIDIA_API_KEY") ?: ""}\"")
-        buildConfigField("String", "USDA_API_KEY", "\"${System.getenv("USDA_API_KEY") ?: "DEMO_KEY"}\"")
     }
 
     signingConfigs {
