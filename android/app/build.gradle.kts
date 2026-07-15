@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId = "com.rork.cookscope"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
@@ -85,5 +85,8 @@ dependencies {
     implementation(libs.camera.view)
     implementation(libs.revenuecat)
     implementation(libs.revenuecat.ui)
+    implementation(platform(libs.supabase.bom))
+    implementation(libs.supabase.postgrest)
+    implementation(libs.supabase.auth)
     debugImplementation(libs.androidx.ui.tooling)
 }

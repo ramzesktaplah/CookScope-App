@@ -14,6 +14,8 @@ koin = "4.1.1"
 media3 = "1.10.1"
 camerax = "1.4.2"
 revenuecat = "10.7.0"
+supabase = "3.5.0"
+supabaseBom = "3.5.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -47,6 +49,9 @@ camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", versi
 camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
 revenuecat = { group = "com.revenuecat.purchases", name = "purchases", version.ref = "revenuecat" }
 revenuecat-ui = { group = "com.revenuecat.purchases", name = "purchases-ui", version.ref = "revenuecat" }
+supabase-bom = { group = "io.github.jan-tennert.supabase", name = "bom", version.ref = "supabaseBom" }
+supabase-postgrest = { group = "io.github.jan-tennert.supabase", name = "postgrest-kt" }
+supabase-auth = { group = "io.github.jan-tennert.supabase", name = "auth-kt" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
