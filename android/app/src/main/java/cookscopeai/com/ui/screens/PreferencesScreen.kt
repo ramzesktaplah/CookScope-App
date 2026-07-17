@@ -51,7 +51,7 @@ fun PreferencesScreen(onBack: () -> Unit) {
 
     val skillOptions = listOf("Beginner", "Amateur", "Intermediate", "Home Cook", "Professional", "Chef-Level")
     val dietaryOptions = listOf("None", "Vegetarian", "Vegan", "Gluten-Free", "Keto", "Paleo", "Pescatarian", "Low-Carb", "Dairy-Free", "Nut-Free", "Halal", "Kosher")
-    val cuisineOptions = listOf("Italian", "Japanese", "Mexican", "Mediterranean", "Indian", "Thai", "Korean", "American", "Chinese", "French", "Vietnamese", "Middle Eastern", "Brazilian", "Spanish", "Greek", "Moroccan", "Turkish", "Caribbean", "German")
+    val cuisineOptions = listOf("Italian", "Japanese", "Mexican", "Mediterranean", "Indian", "Thai", "Korean", "American", "Chinese", "French", "Vietnamese", "Spanish", "Moroccan", "Greek", "Brazilian", "Caribbean", "Turkish", "Lebanese", "Middle Eastern", "German")
     val allergyOptions = listOf("None", "Peanuts", "Shellfish", "Dairy", "Eggs", "Soy", "Wheat", "Fish", "Tree Nuts")
 
     LazyColumn(

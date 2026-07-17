@@ -93,8 +93,8 @@ fun CreateRecipeScreen(onRecipeGenerated: (String) -> Unit) {
 
     val cuisines = listOf(
         "Any Cuisine", "Italian", "Japanese", "Mexican", "Mediterranean", "Indian", "Thai",
-        "Korean", "American", "Chinese", "French", "Vietnamese", "Middle Eastern",
-        "Brazilian", "Spanish", "Greek", "Moroccan", "Turkish", "Caribbean", "German",
+        "Korean", "American", "Chinese", "French", "Vietnamese", "Spanish", "Moroccan",
+        "Greek", "Brazilian", "Caribbean", "Turkish", "Lebanese", "Middle Eastern", "German",
     )
     val dishTypes = listOf(
         "Any Dish", "Main Course", "Appetizer", "Dessert", "Breakfast", "Salad", "Soup",

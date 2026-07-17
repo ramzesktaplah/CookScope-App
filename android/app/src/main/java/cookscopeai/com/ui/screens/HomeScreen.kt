@@ -40,6 +40,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import java.util.Calendar
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -78,7 +79,7 @@ fun HomeScreen(
     var isSearching by remember { mutableStateOf(false) }
     var hasSearched by remember { mutableStateOf(false) }
 
-    // Load 6 random featured recipes on first launch
+    // Load 6 random featured recipes and 10 trending on first launch
     LaunchedEffect(Unit) {
         isLoading = true
         val result = discoveryService.loadRandomRecipes(6)
@@ -86,13 +87,13 @@ fun HomeScreen(
             onSuccess = { recipes ->
                 if (recipes.isNotEmpty()) {
                     featuredRecipes = recipes
-                    trendingRecipes = recipes.take(4)
+                    trendingRecipes = RecipeData.trending.take(10)
                 }
             },
             onFailure = {
                 // Fall back to seed data
                 featuredRecipes = RecipeData.featured
-                trendingRecipes = RecipeData.trending.take(4)
+                trendingRecipes = RecipeData.trending.take(10)
             }
         )
         isLoading = false
@@ -279,16 +280,16 @@ private fun HeaderSection(
             .background(MaterialTheme.colorScheme.background)
             .padding(top = 56.dp, start = 20.dp, end = 20.dp, bottom = 20.dp)
     ) {
-        // User greeting
+        // User greeting based on time of day
         Text(
-            "Good Evening, Chef",
+            getTimeGreeting(),
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onBackground,
             fontWeight = FontWeight.Bold,
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            "What are we cooking tonight?",
+            "What are we cooking?",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -507,6 +508,16 @@ private fun TrendingRecipeRow(recipe: Recipe, onClick: () -> Unit) {
                 )
             }
         }
+    }
+}
+
+private fun getTimeGreeting(): String {
+    val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+    return when (hour) {
+        in 5..11 -> "Good Morning, Chef"
+        in 12..16 -> "Good Afternoon, Chef"
+        in 17..20 -> "Good Evening, Chef"
+        else -> "Good Night, Chef"
     }
 }
 
