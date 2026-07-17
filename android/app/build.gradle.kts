@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.rork.cookscope"
+    namespace = "cookscopeai.com"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.rork.cookscope"
+        applicationId = "cookscopeai.com"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

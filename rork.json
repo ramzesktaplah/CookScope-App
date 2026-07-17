@@ -4,7 +4,10 @@
     {
       "name": "CookScope",
       "path": "android",
-      "framework": "kotlin"
+      "framework": "kotlin",
+      "settings": {
+        "androidPackage": "cookscopeai.com"
+      }
     },
     {
       "name": "Backend",
