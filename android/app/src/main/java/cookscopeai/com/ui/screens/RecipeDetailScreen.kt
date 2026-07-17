@@ -34,11 +34,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,13 +48,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import cookscopeai.com.data.RecipeData
 import cookscopeai.com.data.RecipeDiscoveryService
+import cookscopeai.com.data.RecipeShareManager
 import cookscopeai.com.data.model.Ingredient
 import cookscopeai.com.ui.theme.GoldPrimary
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun RecipeDetailScreen(
@@ -65,6 +72,9 @@ fun RecipeDetailScreen(
     var recipe by remember(recipeId) { mutableStateOf(cachedRecipe) }
     var isLoading by remember { mutableStateOf(false) }
     var isSaved by remember { mutableStateOf(false) }
+    var isSharing by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     // Fetch full recipe details from API if the cached version lacks ingredients/steps
     LaunchedEffect(recipeId) {
@@ -134,17 +144,34 @@ fun RecipeDetailScreen(
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         IconButton(
-                            onClick = { /* share */ },
+                            enabled = !isSharing,
+                            onClick = {
+                                scope.launch {
+                                    isSharing = true
+                                    val success = withContext(Dispatchers.IO) {
+                                        RecipeShareManager.shareRecipe(context, r)
+                                    }
+                                    isSharing = false
+                                }
+                            },
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(CircleShape)
                                 .background(Color.Black.copy(alpha = 0.35f)),
                         ) {
-                            Icon(
-                                Icons.Default.Share,
-                                contentDescription = "Share",
-                                tint = Color.White,
-                            )
+                            if (isSharing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = Color.White,
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Default.Share,
+                                    contentDescription = "Share",
+                                    tint = Color.White,
+                                )
+                            }
                         }
                         IconButton(
                             onClick = { isSaved = !isSaved },
