@@ -49,7 +49,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -128,19 +127,14 @@ fun PaywallScreen(onBack: () -> Unit, onPurchased: () -> Unit) {
                     modifier = Modifier
                         .size(88.dp)
                         .clip(CircleShape)
-                        .background(
-                            Brush.radialGradient(
-                                colors = listOf(GoldPrimary, GoldPrimary.copy(alpha = 0.3f))
-                            )
-                        ),
+                        .background(Color.White),
                     contentAlignment = Alignment.Center,
                 ) {
                     Image(
                         painter = painterResource(R.drawable.ic_brand_logo),
-                        contentDescription = null,
+                        contentDescription = "CookScope logo",
                         contentScale = ContentScale.Fit,
-                        colorFilter = ColorFilter.tint(Color.Black),
-                        modifier = Modifier.size(48.dp),
+                        modifier = Modifier.size(64.dp),
                     )
                 }
             }
