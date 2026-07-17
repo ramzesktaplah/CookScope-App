@@ -16,12 +16,12 @@ object ThemeManager {
 
     private lateinit var prefs: SharedPreferences
 
-    private val _isDarkMode = MutableStateFlow(true)
+    private val _isDarkMode = MutableStateFlow(false)
     val isDarkMode: StateFlow<Boolean> = _isDarkMode.asStateFlow()
 
     fun initialize(context: Context) {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        _isDarkMode.value = prefs.getBoolean(KEY_DARK_MODE, true)
+        _isDarkMode.value = prefs.getBoolean(KEY_DARK_MODE, false)
     }
 
     fun setDarkMode(enabled: Boolean) {
