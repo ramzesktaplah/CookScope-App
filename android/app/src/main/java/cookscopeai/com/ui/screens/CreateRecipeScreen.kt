@@ -61,10 +61,7 @@ import androidx.compose.ui.unit.dp
 import cookscopeai.com.data.RecipeData
 import cookscopeai.com.data.RecipeGenerationService
 import cookscopeai.com.ui.components.SmoothInput
-import cookscopeai.com.ui.theme.BlackBorder
-import cookscopeai.com.ui.theme.BlackCard
 import cookscopeai.com.ui.theme.GoldPrimary
-import cookscopeai.com.ui.theme.TextSecondary
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -142,7 +139,7 @@ fun CreateRecipeScreen(onRecipeGenerated: (String) -> Unit) {
                     Text(
                         "Click any ingredient to add it to your list",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     IconButton(
                         onClick = { suggestionSeed++ },
@@ -285,7 +282,7 @@ fun CreateRecipeScreen(onRecipeGenerated: (String) -> Unit) {
                 Text(
                     "AI-crafted restaurant quality recipe with pro techniques",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -351,7 +348,7 @@ fun CreateRecipeScreen(onRecipeGenerated: (String) -> Unit) {
                     Text(
                         "Add at least one ingredient to generate a recipe",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                     )
@@ -385,7 +382,7 @@ private fun SectionLabel(title: String, subtitle: String) {
         Text(
             subtitle,
             style = MaterialTheme.typography.bodySmall,
-            color = TextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -414,8 +411,8 @@ private fun SuggestedChip(text: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(BlackCard)
-            .border(1.dp, BlackBorder, RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -430,7 +427,7 @@ private fun SuggestedChip(text: String, onClick: () -> Unit) {
         Text(
             text,
             style = MaterialTheme.typography.labelLarge,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.Medium,
         )
     }
@@ -491,14 +488,14 @@ private fun DropdownField(
                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
             },
             colors = ExposedDropdownMenuDefaults.textFieldColors(
-                focusedContainerColor = BlackCard,
-                unfocusedContainerColor = BlackCard,
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                 focusedIndicatorColor = GoldPrimary,
-                unfocusedIndicatorColor = BlackBorder,
+                unfocusedIndicatorColor = MaterialTheme.colorScheme.outline,
                 focusedLabelColor = GoldPrimary,
-                unfocusedLabelColor = TextSecondary,
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
+                unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
             ),
             modifier = Modifier
                 .fillMaxWidth()
@@ -508,7 +505,7 @@ private fun DropdownField(
             expanded = expanded,
             onDismissRequest = { expanded = false },
             modifier = Modifier
-                .background(BlackCard)
+                .background(MaterialTheme.colorScheme.surface)
                 .heightIn(max = 260.dp),
         ) {
             options.forEach { option ->
@@ -516,7 +513,7 @@ private fun DropdownField(
                     text = {
                         Text(
                             option,
-                            color = if (option == selected) GoldPrimary else Color.White,
+                            color = if (option == selected) GoldPrimary else MaterialTheme.colorScheme.onSurface,
                             fontWeight = if (option == selected) FontWeight.SemiBold else FontWeight.Normal,
                         )
                     },
@@ -533,12 +530,12 @@ private fun DropdownField(
 
 @Composable
 private fun MenuItemColors() = androidx.compose.material3.MenuItemColors(
-    textColor = Color.White,
-    leadingIconColor = Color.White,
-    trailingIconColor = Color.White,
-    disabledTextColor = TextSecondary,
-    disabledLeadingIconColor = TextSecondary,
-    disabledTrailingIconColor = TextSecondary,
+    textColor = MaterialTheme.colorScheme.onSurface,
+    leadingIconColor = MaterialTheme.colorScheme.onSurface,
+    trailingIconColor = MaterialTheme.colorScheme.onSurface,
+    disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
 )
 
 @Composable
@@ -600,7 +597,7 @@ private fun GeneratingOverlay(
                 Text(
                     ingredients.joinToString(", "),
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
             }

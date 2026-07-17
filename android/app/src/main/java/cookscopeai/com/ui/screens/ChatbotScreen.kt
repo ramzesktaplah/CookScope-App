@@ -55,17 +55,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import cookscopeai.com.data.ChatService
 import cookscopeai.com.ui.components.SmoothInput
-import cookscopeai.com.ui.theme.AmberGold
-import cookscopeai.com.ui.theme.BlackBg
-import cookscopeai.com.ui.theme.BlackBorder
-import cookscopeai.com.ui.theme.BlackCard
-import cookscopeai.com.ui.theme.BlackElevated
-import cookscopeai.com.ui.theme.BlackSurface
-import cookscopeai.com.ui.theme.ForestPrimary
 import cookscopeai.com.ui.theme.GoldDeep
 import cookscopeai.com.ui.theme.GoldLight
 import cookscopeai.com.ui.theme.GoldPrimary
-import cookscopeai.com.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
 
 private data class ChatBubble(
@@ -176,8 +168,8 @@ fun ChatbotScreen() {
                 .fillMaxSize()
                 .imePadding(),
         ) {
-            // Glass header
-            GlassHeader()
+            // Header
+            ChatHeader()
 
             // Messages list
             LazyColumn(
@@ -229,7 +221,7 @@ fun ChatbotScreen() {
 }
 
 @Composable
-private fun GlassHeader() {
+private fun ChatHeader() {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -242,9 +234,9 @@ private fun GlassHeader() {
                 .background(
                     Brush.horizontalGradient(
                         colors = listOf(
-                            GoldPrimary.copy(alpha = 0.12f),
-                            BlackSurface.copy(alpha = 0.7f),
-                            GoldPrimary.copy(alpha = 0.12f),
+                            MaterialTheme.colorScheme.surfaceVariant,
+                            MaterialTheme.colorScheme.surface,
+                            MaterialTheme.colorScheme.surfaceVariant,
                         )
                     )
                 )

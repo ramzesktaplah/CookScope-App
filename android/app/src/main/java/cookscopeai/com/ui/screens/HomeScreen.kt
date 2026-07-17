@@ -59,7 +59,6 @@ import cookscopeai.com.ui.components.RecipeCard
 import cookscopeai.com.ui.theme.GoldDeep
 import cookscopeai.com.ui.theme.GoldLight
 import cookscopeai.com.ui.theme.GoldPrimary
-import cookscopeai.com.ui.theme.TextSecondary
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -165,7 +164,7 @@ fun HomeScreen(
                             searchResults = emptyList()
                             hasSearched = false
                         }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Clear", tint = TextSecondary)
+                            Icon(Icons.Default.Clear, contentDescription = "Clear", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -183,14 +182,14 @@ fun HomeScreen(
                         Text(
                             "No recipes found",
                             style = MaterialTheme.typography.titleMedium,
-                            color = TextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.SemiBold,
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
                             "Try a different search term",
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(Modifier.height(12.dp))
                         Text(
@@ -284,14 +283,14 @@ private fun HeaderSection(
         Text(
             "Good Evening, Chef",
             style = MaterialTheme.typography.headlineMedium,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onBackground,
             fontWeight = FontWeight.Bold,
         )
         Spacer(Modifier.height(4.dp))
         Text(
             "What are we cooking tonight?",
             style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(20.dp))
         // Search bar — functional text input
@@ -302,14 +301,14 @@ private fun HeaderSection(
                 Text(
                     "Search recipes, cuisines, ingredients...",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White.copy(alpha = 0.5f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 )
             },
             leadingIcon = {
                 Icon(
                     Icons.Default.Search,
                     contentDescription = "Search",
-                    tint = Color.White.copy(alpha = 0.6f),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp),
                 )
             },
@@ -319,7 +318,7 @@ private fun HeaderSection(
                         Icon(
                             Icons.Default.Clear,
                             contentDescription = "Clear",
-                            tint = Color.White.copy(alpha = 0.6f),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp),
                         )
                     }
@@ -330,14 +329,14 @@ private fun HeaderSection(
             keyboardActions = KeyboardActions(onSearch = { onSearch() }),
             shape = RoundedCornerShape(16.dp),
             colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.White.copy(alpha = 0.10f),
-                unfocusedContainerColor = Color.White.copy(alpha = 0.10f),
-                disabledContainerColor = Color.White.copy(alpha = 0.10f),
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent,
                 disabledIndicatorColor = Color.Transparent,
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                 cursorColor = GoldPrimary,
             ),
             modifier = Modifier.fillMaxWidth(),
@@ -562,7 +561,7 @@ private fun SearchResultRow(recipe: Recipe, onClick: () -> Unit) {
                 Text(
                     recipe.tags.take(3).joinToString(" • "),
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

@@ -39,7 +39,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import cookscopeai.com.data.UserManager
 import cookscopeai.com.ui.theme.GoldPrimary
-import cookscopeai.com.ui.theme.TextSecondary
 
 @Composable
 fun PreferencesScreen(onBack: () -> Unit) {
@@ -141,7 +140,7 @@ private fun PreferenceSelector(
         Text(
             subtitle,
             style = MaterialTheme.typography.bodySmall,
-            color = TextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(10.dp))
         options.forEach { option ->

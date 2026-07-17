@@ -8,6 +8,9 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Manages dark/light theme preference with persistence.
+ *
+ * CookScope defaults to light mode so the warm cream/gold palette is visible.
+ * Users can still toggle dark mode from Settings.
  */
 object ThemeManager {
 
@@ -21,6 +24,7 @@ object ThemeManager {
 
     fun initialize(context: Context) {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        // Default to light mode (false) unless the user explicitly enabled dark mode.
         _isDarkMode.value = prefs.getBoolean(KEY_DARK_MODE, false)
     }
 

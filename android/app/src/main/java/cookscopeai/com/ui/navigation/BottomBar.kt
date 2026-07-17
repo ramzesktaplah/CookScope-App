@@ -42,7 +42,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import cookscopeai.com.ui.theme.GoldPrimary
-import cookscopeai.com.ui.theme.TextSecondary
 
 data class GlassTabItem(
     val route: String,

@@ -40,9 +40,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import cookscopeai.com.data.RecipeData
 import cookscopeai.com.data.UserManager
-import cookscopeai.com.ui.theme.BlackCard
 import cookscopeai.com.ui.theme.GoldPrimary
-import cookscopeai.com.ui.theme.TextSecondary
 
 @Composable
 fun SavedRecipesScreen(
@@ -107,7 +105,7 @@ fun SavedRecipesScreen(
                     Text(
                         "Bookmark recipes you love to find them here",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -127,7 +125,7 @@ fun SavedRecipesScreen(
                         modifier = Modifier
                             .size(64.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(BlackCard),
+                            .background(MaterialTheme.colorScheme.surface),
                     ) {
                         AsyncImage(
                             model = recipe.imageUrl,
@@ -148,7 +146,7 @@ fun SavedRecipesScreen(
                         Text(
                             "${recipe.cuisine} • ${recipe.cookTimeMin} min",
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(Modifier.height(4.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {

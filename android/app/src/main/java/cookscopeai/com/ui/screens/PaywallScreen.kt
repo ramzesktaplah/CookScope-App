@@ -58,12 +58,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cookscopeai.com.R
 import cookscopeai.com.data.SubscriptionManager
-import cookscopeai.com.ui.theme.BlackBg
-import cookscopeai.com.ui.theme.BlackCard
-import cookscopeai.com.ui.theme.BlackSurface
 import cookscopeai.com.ui.theme.GoldLight
 import cookscopeai.com.ui.theme.GoldPrimary
-import cookscopeai.com.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
 
 @Composable
@@ -93,7 +89,10 @@ fun PaywallScreen(onBack: () -> Unit, onPurchased: () -> Unit) {
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(BlackSurface, BlackBg)
+                    colors = listOf(
+                        MaterialTheme.colorScheme.surface,
+                        MaterialTheme.colorScheme.background,
+                    )
                 )
             )
     ) {
@@ -153,7 +152,7 @@ fun PaywallScreen(onBack: () -> Unit, onPurchased: () -> Unit) {
                 Text(
                     "Unlock the full culinary experience",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
             }
@@ -282,14 +281,14 @@ fun PaywallScreen(onBack: () -> Unit, onPurchased: () -> Unit) {
                         Icon(
                             Icons.Default.Restore,
                             contentDescription = null,
-                            tint = TextSecondary,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp),
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
                             "Restore Purchases",
                             style = MaterialTheme.typography.labelLarge,
-                            color = TextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
 
@@ -319,7 +318,7 @@ fun PaywallScreen(onBack: () -> Unit, onPurchased: () -> Unit) {
                         "before the end of the current period. " +
                         "Manage or cancel anytime in Google Play Store settings.",
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary.copy(alpha = 0.6f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(horizontal = 32.dp),
                     lineHeight = 16.sp,
@@ -344,7 +343,7 @@ private fun PricingOption(
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .background(
-                if (isSelected) GoldPrimary.copy(alpha = 0.12f) else BlackCard
+                if (isSelected) GoldPrimary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface
             )
             .border(
                 width = if (isSelected) 2.dp else 1.dp,
@@ -364,7 +363,7 @@ private fun PricingOption(
                     Text(
                         title,
                         style = MaterialTheme.typography.titleLarge,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onBackground,
                         fontWeight = FontWeight.Bold,
                     )
                     if (badge != null) {
@@ -388,21 +387,21 @@ private fun PricingOption(
                 Text(
                     subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     price,
                     style = MaterialTheme.typography.headlineMedium,
-                    color = if (isSelected) GoldPrimary else Color.White,
+                    color = if (isSelected) GoldPrimary else MaterialTheme.colorScheme.onBackground,
                     fontWeight = FontWeight.Bold,
                 )
                 Spacer(Modifier.width(2.dp))
                 Text(
                     period,
                     style = MaterialTheme.typography.labelLarge,
-                    color = TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 4.dp),
                 )
             }
@@ -439,14 +438,14 @@ private fun PremiumFeature(
             Text(
                 title,
                 style = MaterialTheme.typography.titleSmall,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.height(2.dp))
             Text(
                 description,
                 style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 lineHeight = 18.sp,
             )
         }

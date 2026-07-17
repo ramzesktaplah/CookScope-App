@@ -52,10 +52,7 @@ import coil3.compose.AsyncImage
 import cookscopeai.com.data.RecipeData
 import cookscopeai.com.data.RecipeDiscoveryService
 import cookscopeai.com.data.model.Ingredient
-import cookscopeai.com.ui.theme.AmberGold
-import cookscopeai.com.ui.theme.BlackBg
 import cookscopeai.com.ui.theme.GoldPrimary
-import cookscopeai.com.ui.theme.TextSecondary
 
 @Composable
 fun RecipeDetailScreen(

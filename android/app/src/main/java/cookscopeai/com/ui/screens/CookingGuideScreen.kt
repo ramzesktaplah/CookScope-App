@@ -50,8 +50,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cookscopeai.com.data.RecipeData
 import cookscopeai.com.data.model.CookStep
-import cookscopeai.com.ui.theme.BlackBg
-import cookscopeai.com.ui.theme.BlackCard
 import cookscopeai.com.ui.theme.GoldLight
 import cookscopeai.com.ui.theme.GoldPrimary
 
@@ -83,8 +81,8 @@ fun CookingGuideScreen(
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
-                                BlackCard,
-                                BlackBg,
+                                MaterialTheme.colorScheme.surface,
+                                MaterialTheme.colorScheme.background,
                             )
                         )
                     )
@@ -100,12 +98,12 @@ fun CookingGuideScreen(
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.1f)),
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
                         ) {
                             Icon(
                                 Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back",
-                                tint = Color.White,
+                                tint = MaterialTheme.colorScheme.onBackground,
                             )
                         }
                         Spacer(Modifier.width(12.dp))
@@ -113,14 +111,14 @@ fun CookingGuideScreen(
                             Text(
                                 recipe.title,
                                 style = MaterialTheme.typography.titleMedium,
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onBackground,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
                             )
                             Text(
                                 "Step ${currentStep + 1} of ${steps.size}",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = Color.White.copy(alpha = 0.8f),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                         Text(
@@ -138,7 +136,7 @@ fun CookingGuideScreen(
                             .height(6.dp)
                             .clip(RoundedCornerShape(3.dp)),
                         color = GoldPrimary,
-                        trackColor = Color.White.copy(alpha = 0.15f),
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
                     )
                 }
             }

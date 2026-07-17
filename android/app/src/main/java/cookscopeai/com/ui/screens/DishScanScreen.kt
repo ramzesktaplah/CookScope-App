@@ -68,13 +68,9 @@ import androidx.core.content.ContextCompat
 import coil3.compose.AsyncImage
 import cookscopeai.com.data.DishScanService
 import cookscopeai.com.data.model.DishAnalysis
-import cookscopeai.com.ui.theme.BlackBg
-import cookscopeai.com.ui.theme.BlackCard
-import cookscopeai.com.ui.theme.BlackSurface
 import cookscopeai.com.ui.theme.GoldDeep
 import cookscopeai.com.ui.theme.GoldLight
 import cookscopeai.com.ui.theme.GoldPrimary
-import cookscopeai.com.ui.theme.TextSecondary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -148,7 +144,7 @@ fun DishScanScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(BlackBg),
+            .background(MaterialTheme.colorScheme.background),
     ) {
         when {
             analysisResult != null -> {
@@ -480,14 +476,14 @@ private fun AnalyzingView(imagePath: String?) {
             Text(
                 "Analyzing your dish...",
                 style = MaterialTheme.typography.titleMedium,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.height(6.dp))
             Text(
                 "CookScope AI is identifying ingredients,\ncalories & nutrition",
                 style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
         }
@@ -517,14 +513,14 @@ private fun ErrorView(
         Text(
             "Scan Failed",
             style = MaterialTheme.typography.titleLarge,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onBackground,
             fontWeight = FontWeight.Bold,
         )
         Spacer(Modifier.height(8.dp))
         Text(
             message,
             style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(24.dp))
@@ -546,7 +542,7 @@ private fun ErrorView(
         Text(
             "Go Back",
             style = MaterialTheme.typography.labelMedium,
-            color = TextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.clickable { onBack() },
         )
     }
@@ -562,7 +558,7 @@ private fun AnalysisResultView(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(BlackBg),
+            .background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(bottom = 32.dp),
     ) {
         // Photo header
@@ -571,7 +567,7 @@ private fun AnalysisResultView(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(220.dp)
-                    .background(BlackSurface),
+                    .background(MaterialTheme.colorScheme.surface),
             ) {
                 if (imagePath != null) {
                     AsyncImage(
@@ -587,7 +583,7 @@ private fun AnalysisResultView(
                         .background(
                             Brush.verticalGradient(
                                 0f to Color.Transparent,
-                                1f to BlackBg,
+                                1f to MaterialTheme.colorScheme.background,
                             )
                         )
                 )
@@ -633,14 +629,14 @@ private fun AnalysisResultView(
                     Text(
                         analysis.dishName,
                         style = MaterialTheme.typography.headlineSmall,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onBackground,
                         fontWeight = FontWeight.Bold,
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
                         analysis.description,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.8f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2,
                     )
                 }
@@ -690,7 +686,7 @@ private fun AnalysisResultView(
                 Text(
                     "Allergens",
                     style = MaterialTheme.typography.labelLarge,
-                    color = TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
                 Spacer(Modifier.height(8.dp))
@@ -748,7 +744,7 @@ private fun HealthScoreCard(score: Int, notes: String) {
             .fillMaxWidth()
             .padding(16.dp)
             .clip(RoundedCornerShape(20.dp))
-            .background(BlackCard)
+            .background(MaterialTheme.colorScheme.surface)
             .padding(20.dp),
     ) {
         Row(
@@ -760,7 +756,7 @@ private fun HealthScoreCard(score: Int, notes: String) {
                 Text(
                     "Health Score",
                     style = MaterialTheme.typography.labelMedium,
-                    color = TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
@@ -790,7 +786,7 @@ private fun HealthScoreCard(score: Int, notes: String) {
             Text(
                 notes,
                 style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -830,7 +826,7 @@ private fun CalorieHighlightCard(calories: Int, mealType: String, portionSize: S
                 Text(
                     "kcal",
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -839,7 +835,7 @@ private fun CalorieHighlightCard(calories: Int, mealType: String, portionSize: S
                 Text(
                     mealType.replaceFirstChar { it.uppercase() },
                     style = MaterialTheme.typography.labelMedium,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onBackground,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -848,7 +844,7 @@ private fun CalorieHighlightCard(calories: Int, mealType: String, portionSize: S
                 Text(
                     portionSize,
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -894,21 +890,21 @@ private fun NutrientCell(label: String, value: String, modifier: Modifier = Modi
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(BlackCard)
+            .background(MaterialTheme.colorScheme.surface)
             .padding(vertical = 16.dp, horizontal = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
             value,
             style = MaterialTheme.typography.titleLarge,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onBackground,
             fontWeight = FontWeight.Bold,
         )
         Spacer(Modifier.height(4.dp))
         Text(
             label,
             style = MaterialTheme.typography.labelSmall,
-            color = TextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -920,7 +916,7 @@ private fun IngredientRow(name: String, amount: String) {
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(BlackCard)
+            .background(MaterialTheme.colorScheme.surface)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
@@ -928,7 +924,7 @@ private fun IngredientRow(name: String, amount: String) {
         Text(
             name,
             style = MaterialTheme.typography.bodyMedium,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onBackground,
             fontWeight = FontWeight.Medium,
         )
         Text(
@@ -968,7 +964,7 @@ private fun SectionTitle(title: String) {
     Text(
         title,
         style = MaterialTheme.typography.titleMedium,
-        color = Color.White,
+        color = MaterialTheme.colorScheme.onBackground,
         fontWeight = FontWeight.Bold,
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
     )
@@ -996,14 +992,14 @@ private fun PermissionDeniedView(
         Text(
             "Camera Access Needed",
             style = MaterialTheme.typography.titleLarge,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onBackground,
             fontWeight = FontWeight.Bold,
         )
         Spacer(Modifier.height(8.dp))
         Text(
             "CookScope needs camera access to scan and analyze your dishes",
             style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(24.dp))
@@ -1025,7 +1021,7 @@ private fun PermissionDeniedView(
         Text(
             "Go Back",
             style = MaterialTheme.typography.labelMedium,
-            color = TextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.clickable { onBack() },
         )
     }

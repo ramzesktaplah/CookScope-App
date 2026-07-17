@@ -48,10 +48,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import cookscopeai.com.data.UserManager
 import cookscopeai.com.data.model.UserRole
-import cookscopeai.com.ui.theme.BlackCard
-import cookscopeai.com.ui.theme.BlackSurface
 import cookscopeai.com.ui.theme.GoldPrimary
-import cookscopeai.com.ui.theme.TextSecondary
 
 @Composable
 fun EditProfileScreen(onBack: () -> Unit) {
@@ -260,7 +257,7 @@ private fun FormField(
         Text(
             label,
             style = MaterialTheme.typography.labelLarge,
-            color = TextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontWeight = FontWeight.SemiBold,
         )
         Spacer(Modifier.height(6.dp))
@@ -269,11 +266,11 @@ private fun FormField(
             onValueChange = onValueChange,
             singleLine = singleLine,
             prefix = if (prefix != null) {
-                { Text(prefix, color = TextSecondary) }
+                { Text(prefix, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             } else null,
             colors = TextFieldDefaults.colors(
-                focusedContainerColor = BlackCard,
-                unfocusedContainerColor = BlackCard,
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                 focusedIndicatorColor = GoldPrimary,
                 unfocusedIndicatorColor = MaterialTheme.colorScheme.outline,
                 focusedTextColor = MaterialTheme.colorScheme.onBackground,
@@ -295,7 +292,7 @@ private fun RoleOption(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(if (isSelected) GoldPrimary.copy(alpha = 0.12f) else BlackCard)
+            .background(if (isSelected) GoldPrimary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface)
             .border(
                 width = if (isSelected) 2.dp else 1.dp,
                 color = if (isSelected) GoldPrimary else MaterialTheme.colorScheme.outline,
@@ -319,7 +316,7 @@ private fun RoleOption(
                 Text(
                     description,
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             if (isSelected) {

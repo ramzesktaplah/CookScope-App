@@ -47,7 +47,6 @@ import androidx.compose.ui.unit.dp
 import cookscopeai.com.data.SubscriptionManager
 import cookscopeai.com.data.ThemeManager
 import cookscopeai.com.ui.theme.GoldPrimary
-import cookscopeai.com.ui.theme.TextSecondary
 
 @Composable
 fun SettingsScreen(
@@ -150,7 +149,7 @@ fun SettingsScreen(
                     Text(
                         if (isDarkMode) "On" else "Off",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 Switch(
@@ -159,7 +158,7 @@ fun SettingsScreen(
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = Color.Black,
                         checkedTrackColor = GoldPrimary,
-                        uncheckedThumbColor = TextSecondary,
+                        uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         uncheckedTrackColor = MaterialTheme.colorScheme.outline,
                     ),
                 )
@@ -202,7 +201,7 @@ fun SettingsScreen(
             Text(
                 "CookScope v1.0\nCrafting culinary confidence with AI",
                 style = MaterialTheme.typography.labelSmall,
-                color = TextSecondary.copy(alpha = 0.6f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
             )
         }
@@ -262,13 +261,13 @@ private fun SettingsRow(
             Text(
                 subtitle,
                 style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         Icon(
             Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
-            tint = TextSecondary,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(20.dp),
         )
     }

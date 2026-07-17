@@ -63,11 +63,7 @@ import coil3.compose.AsyncImage
 import cookscopeai.com.data.SubscriptionManager
 import cookscopeai.com.data.UserManager
 import cookscopeai.com.data.model.UserRole
-import cookscopeai.com.ui.theme.BlackBg
-import cookscopeai.com.ui.theme.BlackCard
-import cookscopeai.com.ui.theme.BlackSurface
 import cookscopeai.com.ui.theme.GoldPrimary
-import cookscopeai.com.ui.theme.TextSecondary
 
 @Composable
 fun ProfileScreen(
@@ -205,7 +201,7 @@ fun ProfileScreen(
                 Text(
                     profile.bio,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -312,7 +308,7 @@ fun ProfileScreen(
                         .clip(RoundedCornerShape(16.dp))
                         .background(
                             Brush.verticalGradient(
-                                colors = listOf(GoldPrimary.copy(alpha = 0.12f), BlackCard)
+                                colors = listOf(GoldPrimary.copy(alpha = 0.12f), MaterialTheme.colorScheme.surface)
                             )
                         )
                         .border(1.dp, GoldPrimary.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
@@ -337,7 +333,7 @@ fun ProfileScreen(
                             Text(
                                 "$4.99/mo or $49.99/yr — save 17%",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextSecondary,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
@@ -366,7 +362,7 @@ fun ProfileScreen(
                             Icon(
                                 if (selectedTab == 0) Icons.Default.GridOn else Icons.Outlined.GridOn,
                                 contentDescription = "Posts",
-                                tint = if (selectedTab == 0) GoldPrimary else TextSecondary,
+                                tint = if (selectedTab == 0) GoldPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(22.dp),
                             )
                         },
@@ -378,7 +374,7 @@ fun ProfileScreen(
                             Icon(
                                 if (selectedTab == 1) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
                                 contentDescription = "Saved",
-                                tint = if (selectedTab == 1) GoldPrimary else TextSecondary,
+                                tint = if (selectedTab == 1) GoldPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(22.dp),
                             )
                         },
@@ -448,7 +444,7 @@ private fun StatColumn(count: String, label: String) {
         Text(
             label,
             style = MaterialTheme.typography.bodySmall,
-            color = TextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -482,7 +478,7 @@ private fun EmptyState(
         Text(
             subtitle,
             style = MaterialTheme.typography.bodySmall,
-            color = TextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
     }
@@ -503,7 +499,7 @@ private fun PostsGrid(posts: List<cookscopeai.com.data.model.ChefPost>) {
                 modifier = Modifier
                     .aspectRatio(1f)
                     .clip(RoundedCornerShape(4.dp))
-                    .background(BlackCard),
+                    .background(MaterialTheme.colorScheme.surface),
             ) {
                 AsyncImage(
                     model = post.imageUrl,
@@ -555,7 +551,7 @@ private fun SavedRecipesList(onSavedRecipes: () -> Unit) {
             Text(
                 "${savedIds.size} saved recipe${if (savedIds.size > 1) "s" else ""}",
                 style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(8.dp))
             Box(
