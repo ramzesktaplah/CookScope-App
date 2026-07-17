@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -45,6 +46,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,6 +58,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import cookscopeai.com.data.ChatService
 import cookscopeai.com.ui.components.SmoothInput
+import cookscopeai.com.R
+import androidx.compose.ui.res.painterResource
 import cookscopeai.com.ui.theme.GoldDeep
 import cookscopeai.com.ui.theme.GoldLight
 import cookscopeai.com.ui.theme.GoldPrimary
@@ -67,11 +72,19 @@ private data class ChatBubble(
     val isTyping: Boolean = false,
 )
 
-private val suggestionChips = listOf(
+private val allSuggestionPool = listOf(
     "What can I make with chicken and rice?",
     "Substitute for eggs in baking",
     "Easy 15-minute dinner ideas",
     "How to perfectly sear a steak?",
+    "Healthy vegetarian meal prep ideas",
+    "Best herbs for tomato sauce",
+    "How to make homemade pasta?",
+    "What wine pairs with salmon?",
+    "Quick high-protein breakfast",
+    "How to fix salty soup?",
+    "Ideas for leftover rice",
+    "Simple sauce for grilled fish",
 )
 
 @Composable
@@ -81,6 +94,13 @@ fun ChatbotScreen() {
     val scope = rememberCoroutineScope()
     val chatService = remember { ChatService() }
     val listState = rememberLazyListState()
+
+    var currentSuggestions by remember { mutableStateOf(allSuggestionPool.shuffled().take(4)) }
+
+    // Randomize suggestions every time the chat tab comes back into view
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        currentSuggestions = allSuggestionPool.shuffled().take(4)
+    }
 
     // Welcome message
     LaunchedEffect(Unit) {
@@ -198,7 +218,7 @@ fun ChatbotScreen() {
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(bottom = 8.dp),
                         )
-                        suggestionChips.forEach { chip ->
+                        currentSuggestions.forEach { chip ->
                             SuggestionChip(
                                 text = chip,
                                 onClick = { sendMessage(chip) },
@@ -243,23 +263,19 @@ private fun ChatHeader() {
                 .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // AI avatar circle
+            // AI chef mascot
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(48.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(
-                        Brush.radialGradient(
-                            colors = listOf(GoldLight, GoldPrimary)
-                        )
-                    ),
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f))
+                    .padding(3.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    Icons.Default.AutoAwesome,
-                    contentDescription = null,
-                    tint = Color.Black,
-                    modifier = Modifier.size(22.dp),
+                Image(
+                    painter = painterResource(id = R.drawable.ic_chatbot_mascot),
+                    contentDescription = "CookScope AI Chef",
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
             Spacer(Modifier.width(12.dp))
