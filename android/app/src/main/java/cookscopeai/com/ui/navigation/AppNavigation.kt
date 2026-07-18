@@ -66,6 +66,7 @@ fun AppNavigation() {
     val sessionStatus by AuthManager.sessionStatus.collectAsState()
     val isOnboardingComplete by UserManager.isOnboardingComplete.collectAsState()
     val isRoleLocked by UserManager.isRoleLocked.collectAsState()
+    val isProfileLoading by UserManager.isProfileLoading.collectAsState()
     val scope = rememberCoroutineScope()
 
     val mainRoutes = listOf("home", "explore", "chat", "create", "profile")
@@ -85,13 +86,17 @@ fun AppNavigation() {
     }
 
     // React to session changes during the lifetime of the app.
-    LaunchedEffect(sessionStatus) {
+    // Wait until the remote profile has finished loading before navigating
+    // forward from an auth screen — otherwise returning users would be sent
+    // back through onboarding because the flags are still false while the
+    // profile is loading.
+    LaunchedEffect(isProfileLoading, sessionStatus) {
         val s = sessionStatus
         val route = currentRoute
-        if (s is SessionStatus.Authenticated) {
+        if (s is SessionStatus.Authenticated && !isProfileLoading) {
             // If we're on an auth screen when the session becomes
-            // authenticated, jump forward to the next onboarding step
-            // (or home if already onboarded).
+            // authenticated (and profile is loaded), jump forward to the
+            // next onboarding step (or home if already onboarded).
             if (route in listOf("welcome", "signup", "verify", "login")) {
                 val target = when {
                     !isRoleLocked -> "account_type"
@@ -102,8 +107,12 @@ fun AppNavigation() {
                     popUpTo("welcome") { inclusive = true }
                 }
             }
-        } else if (s is SessionStatus.NotAuthenticated) {
+        }
+    }
+    LaunchedEffect(sessionStatus) {
+        if (sessionStatus is SessionStatus.NotAuthenticated) {
             // Signed out — clear back stack and go to welcome.
+            val route = currentRoute
             if (route != null && route !in listOf("welcome", "splash")) {
                 navController.navigate("welcome") {
                     popUpTo(0) { inclusive = true }
@@ -112,7 +121,9 @@ fun AppNavigation() {
         }
     }
 
-    if (sessionStatus is SessionStatus.Initializing) {
+    if (sessionStatus is SessionStatus.Initializing ||
+        (sessionStatus is SessionStatus.Authenticated && isProfileLoading)
+    ) {
         Box(
             modifier = Modifier.fillMaxSize().background(BlackBg),
             contentAlignment = Alignment.Center,

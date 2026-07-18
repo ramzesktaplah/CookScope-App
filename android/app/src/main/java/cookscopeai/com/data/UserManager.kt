@@ -73,6 +73,15 @@ object UserManager {
     private val _hasRemoteProfile = MutableStateFlow(false)
     val hasRemoteProfile: StateFlow<Boolean> = _hasRemoteProfile.asStateFlow()
 
+    /**
+     * True while the remote profile + preferences are being fetched after
+     * the session becomes Authenticated. Root navigation waits for this to
+     * become false before deciding the destination, so returning users are
+     * not sent back through onboarding.
+     */
+    private val _isProfileLoading = MutableStateFlow(false)
+    val isProfileLoading: StateFlow<Boolean> = _isProfileLoading.asStateFlow()
+
     private val _savedRecipeIds = MutableStateFlow<Set<String>>(emptySet())
     val savedRecipeIds: StateFlow<Set<String>> = _savedRecipeIds.asStateFlow()
 
@@ -133,11 +142,17 @@ object UserManager {
                                 )
                                 saveProfile()
                             }
-                            loadRemoteProfile(uid)
-                            loadRemotePreferences(uid)
+                            _isProfileLoading.value = true
+                            try {
+                                loadRemoteProfile(uid)
+                                loadRemotePreferences(uid)
+                            } finally {
+                                _isProfileLoading.value = false
+                            }
                         }
                     }
                     is SessionStatus.NotAuthenticated -> {
+                        _isProfileLoading.value = false
                         resetToLocalDefaults()
                     }
                     else -> Unit
@@ -219,6 +234,7 @@ object UserManager {
         _hasRemoteProfile.value = false
         _isRoleLocked.value = false
         _isOnboardingComplete.value = false
+        _isProfileLoading.value = false
         _preferences.value = UserPreferences()
         _profile.value = UserProfile(
             username = "homechef",

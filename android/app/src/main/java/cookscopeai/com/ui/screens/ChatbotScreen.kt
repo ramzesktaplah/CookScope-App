@@ -207,7 +207,6 @@ fun ChatbotScreen() {
         scope.launch {
             val history = messages
                 .filter { !it.isTyping && it.content.isNotBlank() && it.id != 0L }
-                .dropLast(1)
                 .map { ChatService.ChatMessage(it.role, it.content) }
 
             val result = chatService.sendMessage(
