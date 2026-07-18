@@ -1,6 +1,8 @@
 package cookscopeai.com.data
 
 import cookscopeai.com.Config
+import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.auth.FlowType
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import kotlinx.serialization.SerialName
@@ -8,22 +10,34 @@ import kotlinx.serialization.Serializable
 
 /**
  * Supabase client wrapper for CookScope.
- * Provides typed access to the managed Postgres database.
+ * Provides typed access to the managed Postgres database and native Supabase Auth.
  *
  * Tables:
- * - profiles: user profile data (username, bio, role, stars, plan)
+ * - profiles: user profile data (username, bio, role, role_locked, stars, plan)
  * - saved_recipes: bookmarked recipes per user
  * - user_preferences: dietary tags, skill level, cuisines, allergies
  * - chat_messages: chat history per user
  *
  * Uses native Supabase Auth mode (auth.uid() RLS).
+ *
+ * Deep link scheme/host: cookscope://login-callback
+ * This URL must be added to Supabase Dashboard → Authentication → URL Configuration
+ * → Additional Redirect URLs.
  */
 object SupabaseClient {
+
+    const val DEEPLINK_SCHEME = "cookscope"
+    const val DEEPLINK_HOST = "login-callback"
 
     val client = createSupabaseClient(
         supabaseUrl = Config.EXPO_PUBLIC_SUPABASE_URL,
         supabaseKey = Config.EXPO_PUBLIC_SUPABASE_ANON_KEY,
     ) {
+        install(Auth) {
+            this.flowType = FlowType.PKCE
+            scheme = DEEPLINK_SCHEME
+            host = DEEPLINK_HOST
+        }
         install(Postgrest)
     }
 
@@ -37,9 +51,11 @@ object SupabaseClient {
         val bio: String = "",
         @SerialName("avatar_url") val avatarUrl: String = "",
         val role: String = "learner",
+        @SerialName("role_locked") val roleLocked: Boolean = false,
         @SerialName("stars_count") val starsCount: Int = 0,
         @SerialName("stars_given") val starsGiven: Int = 0,
         @SerialName("plan_type") val planType: String = "free",
+        @SerialName("onboarding_complete") val onboardingComplete: Boolean = false,
         @SerialName("created_at") val createdAt: String? = null,
         @SerialName("updated_at") val updatedAt: String? = null,
     )

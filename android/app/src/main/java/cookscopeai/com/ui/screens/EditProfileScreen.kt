@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
@@ -53,6 +54,7 @@ import cookscopeai.com.ui.theme.GoldPrimary
 @Composable
 fun EditProfileScreen(onBack: () -> Unit) {
     val profile by UserManager.profile.collectAsState()
+    val isRoleLocked by UserManager.isRoleLocked.collectAsState()
 
     var displayName by remember { mutableStateOf(profile.displayName) }
     var username by remember { mutableStateOf(profile.username) }
@@ -188,29 +190,61 @@ fun EditProfileScreen(onBack: () -> Unit) {
             }
         }
 
-        // Role selector
+        // Role selector — read-only once locked (after onboarding)
         item {
             Spacer(Modifier.height(24.dp))
             Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                Text(
-                    "Account Type",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    fontWeight = FontWeight.Bold,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "Account Type",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (isRoleLocked) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Lock,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(14.dp),
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                "Locked",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+                    }
+                }
+                if (isRoleLocked) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Your account type was chosen at sign-up and can't be changed.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 Spacer(Modifier.height(12.dp))
                 RoleOption(
                     title = "Chef / Teacher",
                     description = "Post cooking content, receive Stars from learners",
                     isSelected = selectedRole == UserRole.CHEF_TEACHER,
-                    onClick = { selectedRole = UserRole.CHEF_TEACHER },
+                    onClick = { if (!isRoleLocked) selectedRole = UserRole.CHEF_TEACHER },
+                    enabled = !isRoleLocked,
                 )
                 Spacer(Modifier.height(8.dp))
                 RoleOption(
                     title = "Learner",
                     description = "Watch, learn, and give Stars to chefs you love",
                     isSelected = selectedRole == UserRole.LEARNER,
-                    onClick = { selectedRole = UserRole.LEARNER },
+                    onClick = { if (!isRoleLocked) selectedRole = UserRole.LEARNER },
+                    enabled = !isRoleLocked,
                 )
             }
         }
@@ -287,6 +321,7 @@ private fun RoleOption(
     description: String,
     isSelected: Boolean,
     onClick: () -> Unit,
+    enabled: Boolean = true,
 ) {
     Box(
         modifier = Modifier
@@ -298,7 +333,7 @@ private fun RoleOption(
                 color = if (isSelected) GoldPrimary else MaterialTheme.colorScheme.outline,
                 shape = RoundedCornerShape(14.dp),
             )
-            .clickable(onClick = onClick)
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(16.dp),
     ) {
         Row(

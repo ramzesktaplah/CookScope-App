@@ -63,7 +63,11 @@ import cookscopeai.com.ui.theme.GoldPrimary
 import kotlinx.coroutines.launch
 
 @Composable
-fun PaywallScreen(onBack: () -> Unit, onPurchased: () -> Unit) {
+fun PaywallScreen(
+    onBack: () -> Unit,
+    onPurchased: () -> Unit,
+    onSkip: () -> Unit = onBack,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val isPremium by SubscriptionManager.isPremium.collectAsState()
@@ -289,6 +293,21 @@ fun PaywallScreen(onBack: () -> Unit, onPurchased: () -> Unit) {
                             "Restore Purchases",
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    // Continue with Free plan — lets onboarding proceed
+                    // without subscribing.
+                    TextButton(
+                        onClick = onSkip,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isLoading,
+                    ) {
+                        Text(
+                            "Continue with Free plan",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium,
                         )
                     }
 

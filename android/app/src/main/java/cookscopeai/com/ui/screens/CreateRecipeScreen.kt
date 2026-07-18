@@ -44,6 +44,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -60,6 +61,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cookscopeai.com.data.RecipeData
 import cookscopeai.com.data.RecipeGenerationService
+import cookscopeai.com.data.UserManager
 import cookscopeai.com.ui.components.SmoothInput
 import cookscopeai.com.ui.theme.GoldPrimary
 import kotlinx.coroutines.delay
@@ -67,11 +69,19 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun CreateRecipeScreen(onRecipeGenerated: (String) -> Unit) {
+    val savedPrefs by UserManager.preferences.collectAsState()
+
     val ingredientList = remember { mutableStateListOf<String>() }
-    var selectedCuisine by remember { mutableStateOf("Any Cuisine") }
+    // Seed defaults from saved onboarding preferences.
+    var selectedCuisine by remember {
+        mutableStateOf(savedPrefs.favoriteCuisines.firstOrNull() ?: "Any Cuisine")
+    }
     var selectedDishType by remember { mutableStateOf("Any Dish") }
-    var selectedSkill by remember { mutableStateOf("Amateur") }
-    var selectedMode by remember { mutableStateOf("Non-Vegan") }
+    var selectedSkill by remember { mutableStateOf(savedPrefs.skillLevel.ifBlank { "Amateur" }) }
+    // Default mode = first dietary tag (or Non-Vegan if none).
+    var selectedMode by remember {
+        mutableStateOf(savedPrefs.dietaryTags.firstOrNull() ?: "Non-Vegan")
+    }
     var isGenerating by remember { mutableStateOf(false) }
     var isPremium by remember { mutableStateOf(false) }
     var suggestionSeed by remember { mutableStateOf(0) }

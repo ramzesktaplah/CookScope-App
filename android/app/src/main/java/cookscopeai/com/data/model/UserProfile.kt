@@ -15,6 +15,7 @@ data class UserProfile(
     val displayName: String = "Home Chef",
     val bio: String = "Cooking with passion, one dish at a time",
     val profilePhotoUri: String? = null,
+    val avatarUrl: String? = null,
     val role: UserRole = UserRole.LEARNER,
     val starsReceived: Int = 0,
     val starsGiven: Int = 0,

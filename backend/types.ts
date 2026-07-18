@@ -49,8 +49,10 @@ export type Database = {
           created_at: string | null
           display_name: string
           id: string
+          onboarding_complete: boolean | null
           plan_type: string
           role: string
+          role_locked: boolean | null
           stars_count: number
           stars_given: number
           updated_at: string | null
@@ -62,8 +64,10 @@ export type Database = {
           created_at?: string | null
           display_name?: string
           id: string
+          onboarding_complete?: boolean | null
           plan_type?: string
           role?: string
+          role_locked?: boolean | null
           stars_count?: number
           stars_given?: number
           updated_at?: string | null
@@ -75,8 +79,10 @@ export type Database = {
           created_at?: string | null
           display_name?: string
           id?: string
+          onboarding_complete?: boolean | null
           plan_type?: string
           role?: string
+          role_locked?: boolean | null
           stars_count?: number
           stars_given?: number
           updated_at?: string | null

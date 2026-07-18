@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PrivacyTip
@@ -54,6 +55,7 @@ fun SettingsScreen(
     onPreferences: () -> Unit,
     onSavedRecipes: () -> Unit,
     onUpgrade: () -> Unit,
+    onSignOut: () -> Unit = {},
 ) {
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
     val isPremium by SubscriptionManager.isPremium.collectAsState()
@@ -192,6 +194,17 @@ fun SettingsScreen(
                 title = "Privacy Policy",
                 subtitle = "How we handle your data",
                 onClick = { /* open privacy */ },
+            )
+        }
+
+        // Sign out
+        item {
+            Spacer(Modifier.height(24.dp))
+            SettingsRow(
+                icon = Icons.Default.Logout,
+                title = "Sign Out",
+                subtitle = "Sign out of your CookScope account",
+                onClick = onSignOut,
             )
         }
 
