@@ -431,7 +431,7 @@ private fun ChatHeader(
                         .background(GoldPrimary),
                 )
                 Spacer(Modifier.width(5.dp))
-                val tierLabel = if (isPremium) "Premium · GPT-4o" else "Free · DeepSeek"
+                val tierLabel = if (isPremium) "Premium · CS Donna AI" else "Free · CS Myth AI"
                 Text(
                     "$tierLabel · $remainingCount left",
                     style = MaterialTheme.typography.labelSmall,

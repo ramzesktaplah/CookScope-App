@@ -268,6 +268,7 @@ fun AppNavigation() {
             composable("scan") {
                 DishScanScreen(
                     onBack = { navController.popBackStack() },
+                    onUpgrade = { navController.navigate("paywall") },
                 )
             }
             composable("paywall") {

@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import cookscopeai.com.data.AuthManager
 import cookscopeai.com.data.ChatHistoryManager
 import cookscopeai.com.data.ChatUsageManager
+import cookscopeai.com.data.ScanUsageManager
 import cookscopeai.com.data.SubscriptionManager
 import cookscopeai.com.data.SupabaseClient
 import cookscopeai.com.data.ThemeManager
@@ -35,6 +36,7 @@ class MainActivity : ComponentActivity() {
         )
         ChatHistoryManager.initialize(this)
         ChatUsageManager.initialize(this)
+        ScanUsageManager.initialize(this)
 
         setContent {
             AppTheme {

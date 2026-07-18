@@ -96,7 +96,11 @@ object ChatHistoryManager {
         )
         _conversations.value = listOf(convo) + _conversations.value
         _activeId.value = id
-        persist()
+        // Enforce the plan-based history limit immediately so free users
+        // can never exceed 10 conversations, even if they rapidly start
+        // new chats. Premium is capped at 30.
+        val limit = if (SubscriptionManager.isPremium.value) 30 else 10
+        trimToLimit(limit)
         return id
     }
 

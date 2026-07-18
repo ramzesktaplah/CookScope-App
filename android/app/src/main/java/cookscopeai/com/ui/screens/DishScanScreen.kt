@@ -4,8 +4,10 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.net.Uri
 import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
@@ -39,6 +41,8 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -47,6 +51,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,6 +72,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import coil3.compose.AsyncImage
 import cookscopeai.com.data.DishScanService
+import cookscopeai.com.data.ScanUsageManager
+import cookscopeai.com.data.SubscriptionManager
 import cookscopeai.com.data.model.DishAnalysis
 import cookscopeai.com.ui.theme.GoldDeep
 import cookscopeai.com.ui.theme.GoldLight
@@ -81,16 +88,29 @@ import kotlin.coroutines.resume
 
 /**
  * Scan Your Dish — AI-powered dish analyzer.
- * Opens camera, captures a photo, sends to AI vision for analysis,
- * and displays nutrition, ingredients, health score, and dietary info.
+ *
+ * Users can capture a photo with the camera OR pick an existing image from
+ * their gallery. The selected image is sent to AI vision for analysis and the
+ * results (nutrition, ingredients, health score, dietary info) are displayed.
+ *
+ * Usage limits (monthly, auto-reset):
+ *  - Free plan:   2 scans / month
+ *  - Premium:    35 scans / month
+ *
+ * When the limit is reached, a locked screen is shown with an upgrade prompt.
  */
 @Composable
 fun DishScanScreen(
     onBack: () -> Unit,
+    onUpgrade: () -> Unit = onBack,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val scanService = remember { DishScanService() }
+
+    val isPremium by SubscriptionManager.isPremium.collectAsState()
+    val scanUsed by ScanUsageManager.used.collectAsState()
+    val scanRemaining by ScanUsageManager.remaining.collectAsState()
 
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -105,25 +125,43 @@ fun DishScanScreen(
         hasCameraPermission = granted
     }
 
-    LaunchedEffect(Unit) {
-        if (!hasCameraPermission) {
-            permissionLauncher.launch(Manifest.permission.CAMERA)
-        }
-    }
-
     var capturedImagePath by remember { mutableStateOf<String?>(null) }
     var isAnalyzing by remember { mutableStateOf(false) }
     var analysisResult by remember { mutableStateOf<DishAnalysis?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var limitReached by remember { mutableStateOf(false) }
+
+    // Photo picker launcher (Android system Photo Picker, no permission required).
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            scope.launch {
+                val copied = withContext(Dispatchers.IO) {
+                    copyUriToCacheFile(context, uri)
+                }
+                if (copied != null) {
+                    capturedImagePath = copied
+                } else {
+                    errorMessage = "Could not load that image. Try another one."
+                }
+            }
+        }
+    }
 
     fun resetScan() {
         capturedImagePath = null
         analysisResult = null
         errorMessage = null
         isAnalyzing = false
+        limitReached = false
     }
 
     fun analyzeImage(path: String) {
+        if (!ScanUsageManager.canScan()) {
+            limitReached = true
+            return
+        }
         scope.launch {
             isAnalyzing = true
             errorMessage = null
@@ -135,7 +173,10 @@ fun DishScanScreen(
             }
             isAnalyzing = false
             result.fold(
-                onSuccess = { analysisResult = it },
+                onSuccess = {
+                    analysisResult = it
+                    ScanUsageManager.increment()
+                },
                 onFailure = { errorMessage = it.message ?: "Analysis failed" }
             )
         }
@@ -192,10 +233,24 @@ fun DishScanScreen(
                 )
             }
 
+            limitReached -> {
+                ScanLimitView(
+                    isPremium = isPremium,
+                    used = scanUsed,
+                    onBack = onBack,
+                    onUpgrade = onUpgrade,
+                )
+            }
+
             hasCameraPermission -> {
                 CameraView(
                     onCapture = { path ->
                         capturedImagePath = path
+                    },
+                    onPickFromGallery = {
+                        photoPickerLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
                     },
                     onBack = onBack,
                 )
@@ -206,9 +261,65 @@ fun DishScanScreen(
                     onBack = onBack,
                     onRequestPermission = {
                         permissionLauncher.launch(Manifest.permission.CAMERA)
-                    }
+                    },
+                    onPickFromGallery = {
+                        photoPickerLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
                 )
             }
+        }
+
+        // Floating usage chip (not shown while analyzing or on result screen).
+        if (capturedImagePath == null && analysisResult == null && !isAnalyzing && errorMessage == null && !limitReached) {
+            ScanUsageChip(
+                remaining = scanRemaining,
+                limit = ScanUsageManager.currentLimit(),
+                isPremium = isPremium,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 72.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ScanUsageChip(
+    remaining: Int,
+    limit: Int,
+    isPremium: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.Black.copy(alpha = 0.55f))
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Default.CameraAlt,
+            contentDescription = null,
+            tint = GoldPrimary,
+            modifier = Modifier.size(15.dp),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            "$remaining / $limit scans left",
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.White,
+            fontWeight = FontWeight.SemiBold,
+        )
+        if (!isPremium) {
+            Spacer(Modifier.width(6.dp))
+            Text(
+                "· Free",
+                style = MaterialTheme.typography.labelSmall,
+                color = GoldPrimary,
+                fontWeight = FontWeight.Medium,
+            )
         }
     }
 }
@@ -216,6 +327,7 @@ fun DishScanScreen(
 @Composable
 private fun CameraView(
     onCapture: (String) -> Unit,
+    onPickFromGallery: () -> Unit,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -283,62 +395,106 @@ private fun CameraView(
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
             )
-            Spacer(Modifier.size(44.dp))
-        }
-
-        // Capture button
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 48.dp)
-                .size(80.dp)
-                .clip(CircleShape)
-                .background(Color.Transparent)
-                .clickable {
-                    val photoFile = File(
-                        context.cacheDir,
-                        "dish_scan_${System.currentTimeMillis()}.jpg"
-                    )
-                    val outputOptions = ImageCapture.OutputFileOptions
-                        .Builder(photoFile)
-                        .build()
-
-                    imageCapture.takePicture(
-                        outputOptions,
-                        ContextCompat.getMainExecutor(context),
-                        object : ImageCapture.OnImageSavedCallback {
-                            override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                                val savedPath = output.savedUri?.path ?: photoFile.absolutePath
-                                onCapture(savedPath)
-                            }
-
-                            override fun onError(exception: ImageCaptureException) {
-                                // Capture failed
-                            }
-                        }
-                    )
-                },
-            contentAlignment = Alignment.Center,
-        ) {
-            Box(
+            // Gallery picker button (upper right)
+            IconButton(
+                onClick = onPickFromGallery,
                 modifier = Modifier
-                    .size(70.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.2f)),
-                contentAlignment = Alignment.Center,
+                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                    .size(44.dp),
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(CircleShape)
-                        .background(Color.White),
+                Icon(
+                    Icons.Default.PhotoLibrary,
+                    contentDescription = "Pick from gallery",
+                    tint = Color.White,
                 )
             }
         }
 
+        // Capture button + gallery button row
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 48.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Gallery picker button (bottom left of capture)
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.18f))
+                    .clickable { onPickFromGallery() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Default.PhotoLibrary,
+                    contentDescription = "Gallery",
+                    tint = Color.White,
+                    modifier = Modifier.size(26.dp),
+                )
+            }
+
+            Spacer(Modifier.width(24.dp))
+
+            // Main capture button
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(CircleShape)
+                    .background(Color.Transparent)
+                    .clickable {
+                        val photoFile = File(
+                            context.cacheDir,
+                            "dish_scan_${System.currentTimeMillis()}.jpg"
+                        )
+                        val outputOptions = ImageCapture.OutputFileOptions
+                            .Builder(photoFile)
+                            .build()
+
+                        imageCapture.takePicture(
+                            outputOptions,
+                            ContextCompat.getMainExecutor(context),
+                            object : ImageCapture.OnImageSavedCallback {
+                                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                                    val savedPath = output.savedUri?.path ?: photoFile.absolutePath
+                                    onCapture(savedPath)
+                                }
+
+                                override fun onError(exception: ImageCaptureException) {
+                                    // Capture failed
+                                }
+                            }
+                        )
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(70.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(CircleShape)
+                            .background(Color.White),
+                    )
+                }
+            }
+
+            Spacer(Modifier.width(24.dp))
+
+            // Spacer to balance the gallery button on the left
+            Spacer(Modifier.size(56.dp))
+        }
+
         // Hint text
         Text(
-            "Point at a dish and tap to capture",
+            "Tap to capture or pick from gallery",
             style = MaterialTheme.typography.bodySmall,
             color = Color.White.copy(alpha = 0.7f),
             textAlign = TextAlign.Center,
@@ -539,6 +695,75 @@ private fun ErrorView(
             )
         }
         Spacer(Modifier.height(12.dp))
+        Text(
+            "Go Back",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.clickable { onBack() },
+        )
+    }
+}
+
+@Composable
+private fun ScanLimitView(
+    isPremium: Boolean,
+    used: Int,
+    onBack: () -> Unit,
+    onUpgrade: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            Icons.Default.Lock,
+            contentDescription = null,
+            tint = GoldPrimary,
+            modifier = Modifier.size(64.dp),
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            "Scan Limit Reached",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onBackground,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            if (isPremium) {
+                "You've used all 35 scans this month. Resets next month."
+            } else {
+                "You've used all 2 free scans this month. Upgrade to Premium for 35 scans / month."
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(24.dp))
+        if (!isPremium) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(GoldLight, GoldPrimary, GoldDeep)
+                        )
+                    )
+                    .clickable { onUpgrade() }
+                    .padding(horizontal = 28.dp, vertical = 14.dp),
+            ) {
+                Text(
+                    "Upgrade to Premium",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = Color.Black,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+        }
         Text(
             "Go Back",
             style = MaterialTheme.typography.labelMedium,
@@ -974,6 +1199,7 @@ private fun SectionTitle(title: String) {
 private fun PermissionDeniedView(
     onBack: () -> Unit,
     onRequestPermission: () -> Unit,
+    onPickFromGallery: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -997,7 +1223,7 @@ private fun PermissionDeniedView(
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "CookScope needs camera access to scan and analyze your dishes",
+            "CookScope can use your camera to scan dishes, or you can pick a photo from your gallery.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -1014,6 +1240,30 @@ private fun PermissionDeniedView(
                 "Grant Camera Access",
                 style = MaterialTheme.typography.titleSmall,
                 color = Color.Black,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        // Gallery fallback when camera permission denied
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(16.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .clickable { onPickFromGallery() }
+                .padding(horizontal = 24.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Default.PhotoLibrary,
+                contentDescription = null,
+                tint = GoldPrimary,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "Pick from Gallery",
+                style = MaterialTheme.typography.titleSmall,
+                color = GoldPrimary,
                 fontWeight = FontWeight.Bold,
             )
         }
@@ -1060,5 +1310,29 @@ private suspend fun awaitCameraProvider(context: android.content.Context): Proce
             { cont.resume(future.get()) },
             ContextCompat.getMainExecutor(context)
         )
+    }
+}
+
+/**
+ * Copies a content Uri (from the Photo Picker) into a cache file so the
+ * existing file-based analysis path can consume it.
+ */
+private fun copyUriToCacheFile(
+    context: android.content.Context,
+    uri: Uri,
+): String? {
+    return try {
+        val outFile = File(
+            context.cacheDir,
+            "dish_pick_${System.currentTimeMillis()}.jpg"
+        )
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            outFile.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        } ?: return null
+        outFile.absolutePath
+    } catch (_: Exception) {
+        null
     }
 }
