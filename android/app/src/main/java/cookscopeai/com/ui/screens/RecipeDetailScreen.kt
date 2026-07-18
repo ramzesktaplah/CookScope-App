@@ -40,6 +40,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -55,6 +56,7 @@ import coil3.compose.AsyncImage
 import cookscopeai.com.data.RecipeData
 import cookscopeai.com.data.RecipeDiscoveryService
 import cookscopeai.com.data.RecipeShareManager
+import cookscopeai.com.data.UserManager
 import cookscopeai.com.data.model.Ingredient
 import cookscopeai.com.ui.theme.GoldPrimary
 import kotlinx.coroutines.Dispatchers
@@ -69,9 +71,10 @@ fun RecipeDetailScreen(
 ) {
     val discoveryService = remember { RecipeDiscoveryService() }
     val cachedRecipe = remember(recipeId) { RecipeData.byId(recipeId) }
+    val savedIds by UserManager.savedRecipeIds.collectAsState()
     var recipe by remember(recipeId) { mutableStateOf(cachedRecipe) }
     var isLoading by remember { mutableStateOf(false) }
-    var isSaved by remember { mutableStateOf(false) }
+    var isSaved by remember(recipeId, savedIds) { mutableStateOf(recipeId in savedIds) }
     var isSharing by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -174,7 +177,10 @@ fun RecipeDetailScreen(
                             }
                         }
                         IconButton(
-                            onClick = { isSaved = !isSaved },
+                            onClick = {
+                                UserManager.toggleSavedRecipe(r.id)
+                                isSaved = !isSaved
+                            },
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(CircleShape)

@@ -58,15 +58,45 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cookscopeai.com.R
 import cookscopeai.com.data.SubscriptionManager
-import cookscopeai.com.ui.theme.GoldLight
 import cookscopeai.com.ui.theme.GoldPrimary
+import cookscopeai.com.ui.theme.LightOnboardingTheme
 import kotlinx.coroutines.launch
 
+/**
+ * Paywall screen — shown as the last step of onboarding and from the
+ * Profile/Settings upgrade paths. Offers monthly and yearly subscriptions.
+ *
+ * When used in onboarding, it is wrapped in [LightOnboardingTheme] by the
+ * caller. When opened from Settings/Profile it follows the user's current
+ * app theme (this screen is theme-aware by default).
+ */
 @Composable
 fun PaywallScreen(
     onBack: () -> Unit,
     onPurchased: () -> Unit,
     onSkip: () -> Unit = onBack,
+    forceLightMode: Boolean = false,
+) {
+    val content: @Composable () -> Unit = {
+        PaywallContent(
+            onBack = onBack,
+            onPurchased = onPurchased,
+            onSkip = onSkip,
+        )
+    }
+
+    if (forceLightMode) {
+        LightOnboardingTheme(content = content)
+    } else {
+        content()
+    }
+}
+
+@Composable
+private fun PaywallContent(
+    onBack: () -> Unit,
+    onPurchased: () -> Unit,
+    onSkip: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -366,7 +396,7 @@ private fun PricingOption(
             )
             .border(
                 width = if (isSelected) 2.dp else 1.dp,
-                color = if (isSelected) GoldPrimary else Color(0xFF2A2A2A),
+                color = if (isSelected) GoldPrimary else MaterialTheme.colorScheme.outline,
                 shape = RoundedCornerShape(20.dp),
             )
             .clickable(onClick = onClick)

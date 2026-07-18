@@ -155,6 +155,22 @@ private val CookScopeTypography = Typography(
     ),
 )
 
+/**
+ * Forces the light CookScope color scheme, regardless of the user's
+ * dark-mode preference. Use this for the onboarding/auth flow so those
+ * screens always render with a clean, light backdrop.
+ */
+@Composable
+fun LightOnboardingTheme(
+    content: @Composable () -> Unit
+) {
+    MaterialTheme(
+        colorScheme = CookScopeLightColors,
+        typography = CookScopeTypography,
+        content = content,
+    )
+}
+
 @Composable
 fun AppTheme(
     content: @Composable () -> Unit

@@ -43,10 +43,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cookscopeai.com.data.UserManager
 import cookscopeai.com.data.model.UserRole
-import cookscopeai.com.ui.theme.BlackBg
-import cookscopeai.com.ui.theme.BlackSurface
 import cookscopeai.com.ui.theme.GoldDeep
 import cookscopeai.com.ui.theme.GoldPrimary
+import cookscopeai.com.ui.theme.LightOnboardingTheme
 
 /**
  * Account Type selection — Chef/Teacher or Learner.
@@ -55,110 +54,114 @@ import cookscopeai.com.ui.theme.GoldPrimary
  * stores the role, locks it (role_locked = true), and pushes it to the
  * profiles table. The role selector in EditProfile will be read-only
  * after this.
+ *
+ * Always renders in light mode.
  */
 @Composable
 fun AccountTypeSelectionScreen(
     onContinue: () -> Unit,
 ) {
-    var selectedRole by remember { mutableStateOf<UserRole?>(null) }
+    LightOnboardingTheme {
+        var selectedRole by remember { mutableStateOf<UserRole?>(null) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BlackBg),
-    ) {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp),
+                .background(MaterialTheme.colorScheme.background),
         ) {
-            Spacer(Modifier.height(56.dp))
-
-            Text(
-                "Choose your account type",
-                style = MaterialTheme.typography.headlineLarge,
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "This will personalize your CookScope experience.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFFB0B0B0),
-            )
-
-            Spacer(Modifier.height(32.dp))
-
-            // Chef / Teacher
-            RoleCard(
-                title = "Chef / Teacher",
-                description = "Post cooking content, share recipes, and receive Stars from learners.",
-                icon = Icons.Default.Restaurant,
-                isSelected = selectedRole == UserRole.CHEF_TEACHER,
-                onClick = { selectedRole = UserRole.CHEF_TEACHER },
-            )
-
-            Spacer(Modifier.height(14.dp))
-
-            // Learner
-            RoleCard(
-                title = "Learner",
-                description = "Watch, learn, give Stars to chefs you love, and discover new recipes.",
-                icon = Icons.Default.Book,
-                isSelected = selectedRole == UserRole.LEARNER,
-                onClick = { selectedRole = UserRole.LEARNER },
-            )
-
-            Spacer(Modifier.height(24.dp))
-
-            // Permanent note
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    Icons.Default.Lock,
-                    contentDescription = null,
-                    tint = GoldDeep,
-                    modifier = Modifier.size(16.dp),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "This choice is permanent and cannot be changed later.",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = GoldDeep,
-                    fontWeight = FontWeight.Medium,
-                )
-            }
-
-            Spacer(Modifier.height(32.dp))
-
-            Button(
-                onClick = {
-                    val role = selectedRole ?: return@Button
-                    UserManager.updateProfile(role = role)
-                    UserManager.setRoleLocked()
-                    onContinue()
-                },
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = GoldPrimary,
-                    contentColor = Color.Black,
-                ),
-                enabled = selectedRole != null,
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp),
             ) {
+                Spacer(Modifier.height(56.dp))
+
                 Text(
-                    "Continue",
-                    style = MaterialTheme.typography.titleMedium,
+                    "Choose your account type",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
                     fontWeight = FontWeight.Bold,
                 )
-            }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "This will personalize your CookScope experience.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
 
-            Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(32.dp))
+
+                // Chef / Teacher
+                RoleCard(
+                    title = "Chef / Teacher",
+                    description = "Post cooking content, share recipes, and receive Stars from learners.",
+                    icon = Icons.Default.Restaurant,
+                    isSelected = selectedRole == UserRole.CHEF_TEACHER,
+                    onClick = { selectedRole = UserRole.CHEF_TEACHER },
+                )
+
+                Spacer(Modifier.height(14.dp))
+
+                // Learner
+                RoleCard(
+                    title = "Learner",
+                    description = "Watch, learn, give Stars to chefs you love, and discover new recipes.",
+                    icon = Icons.Default.Book,
+                    isSelected = selectedRole == UserRole.LEARNER,
+                    onClick = { selectedRole = UserRole.LEARNER },
+                )
+
+                Spacer(Modifier.height(24.dp))
+
+                // Permanent note
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Default.Lock,
+                        contentDescription = null,
+                        tint = GoldDeep,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "This choice is permanent and cannot be changed later.",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = GoldDeep,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+
+                Spacer(Modifier.height(32.dp))
+
+                Button(
+                    onClick = {
+                        val role = selectedRole ?: return@Button
+                        UserManager.updateProfile(role = role)
+                        UserManager.setRoleLocked()
+                        onContinue()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = GoldPrimary,
+                        contentColor = Color.Black,
+                    ),
+                    enabled = selectedRole != null,
+                ) {
+                    Text(
+                        "Continue",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+
+                Spacer(Modifier.height(24.dp))
+            }
         }
     }
 }
@@ -175,10 +178,12 @@ private fun RoleCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(if (isSelected) GoldPrimary.copy(alpha = 0.12f) else BlackSurface)
+            .background(
+                if (isSelected) GoldPrimary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface
+            )
             .border(
                 width = if (isSelected) 2.dp else 1.dp,
-                color = if (isSelected) GoldPrimary else Color(0xFF2A2A2A),
+                color = if (isSelected) GoldPrimary else MaterialTheme.colorScheme.outline,
                 shape = RoundedCornerShape(18.dp),
             )
             .clickable(onClick = onClick)
@@ -193,14 +198,14 @@ private fun RoleCard(
                     .size(56.dp)
                     .clip(CircleShape)
                     .background(
-                        if (isSelected) GoldPrimary.copy(alpha = 0.18f) else Color(0xFF1F1F1F),
+                        if (isSelected) GoldPrimary.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceVariant,
                     ),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     icon,
                     contentDescription = null,
-                    tint = if (isSelected) GoldPrimary else Color(0xFFB0B0B0),
+                    tint = if (isSelected) GoldPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(28.dp),
                 )
             }
@@ -209,14 +214,14 @@ private fun RoleCard(
                 Text(
                     title,
                     style = MaterialTheme.typography.titleMedium,
-                    color = if (isSelected) GoldPrimary else Color.White,
+                    color = if (isSelected) GoldPrimary else MaterialTheme.colorScheme.onBackground,
                     fontWeight = FontWeight.Bold,
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
                     description,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFB0B0B0),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     lineHeight = 18.sp,
                 )
             }

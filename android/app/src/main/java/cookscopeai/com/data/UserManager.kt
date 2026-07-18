@@ -11,6 +11,7 @@ import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -121,6 +122,17 @@ object UserManager {
                         val uid = status.session.user?.id
                         if (uid != null) {
                             _profile.value = _profile.value.copy(id = uid)
+                            // Use the username from signup metadata if no remote profile exists yet.
+                            val metadata = status.session.user?.userMetadata
+                            val signupUsername = metadata?.get("username")?.jsonPrimitive?.content?.trim()
+                            val signupDisplayName = metadata?.get("display_name")?.jsonPrimitive?.content?.trim()
+                            if (!signupUsername.isNullOrBlank()) {
+                                _profile.value = _profile.value.copy(
+                                    username = signupUsername,
+                                    displayName = signupDisplayName?.ifBlank { signupUsername } ?: signupUsername,
+                                )
+                                saveProfile()
+                            }
                             loadRemoteProfile(uid)
                             loadRemotePreferences(uid)
                         }

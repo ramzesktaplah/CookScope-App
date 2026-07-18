@@ -40,6 +40,7 @@ import cookscopeai.com.ui.screens.VerifyEmailScreen
 import cookscopeai.com.ui.screens.WelcomeScreen
 import cookscopeai.com.ui.theme.BlackBg
 import cookscopeai.com.ui.theme.GoldPrimary
+import cookscopeai.com.utilities.openUrl
 import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.launch
 
@@ -69,6 +70,7 @@ fun AppNavigation() {
 
     val mainRoutes = listOf("home", "explore", "chat", "create", "profile")
     val showBottomBar = currentRoute in mainRoutes
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     // Determine the start destination based on auth + onboarding state.
     val startDestination: String = when (val s = sessionStatus) {
@@ -155,7 +157,8 @@ fun AppNavigation() {
             composable("signup") {
                 SignUpScreen(
                     onBack = { navController.popBackStack() },
-                    onSignUpSuccess = { email ->
+                    onSignUpSuccess = { username, email ->
+                        UserManager.updateProfile(username = username, displayName = username)
                         navController.navigate("verify/$email")
                     },
                     onGoogleSuccess = {
@@ -213,6 +216,7 @@ fun AppNavigation() {
                             popUpTo("welcome") { inclusive = true }
                         }
                     },
+                    forceLightMode = true,
                 )
             }
 
@@ -288,6 +292,8 @@ fun AppNavigation() {
                         scope.launch { AuthManager.signOut() }
                         // LaunchedEffect above routes to welcome.
                     },
+                    onTerms = { openUrl(context, "https://cookscope.ai/terms") },
+                    onPrivacy = { openUrl(context, "https://cookscope.ai/privacy") },
                 )
             }
             composable("preferences") {

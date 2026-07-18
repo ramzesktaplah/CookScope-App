@@ -47,7 +47,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import cookscopeai.com.data.SubscriptionManager
 import cookscopeai.com.data.ThemeManager
+import cookscopeai.com.data.UserManager
 import cookscopeai.com.ui.theme.GoldPrimary
+
+private const val TERMS_URL = "https://cookscope.ai/terms"
+private const val PRIVACY_URL = "https://cookscope.ai/privacy"
 
 @Composable
 fun SettingsScreen(
@@ -56,9 +60,14 @@ fun SettingsScreen(
     onSavedRecipes: () -> Unit,
     onUpgrade: () -> Unit,
     onSignOut: () -> Unit = {},
+    onTerms: () -> Unit = {},
+    onPrivacy: () -> Unit = {},
 ) {
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
     val isPremium by SubscriptionManager.isPremium.collectAsState()
+    val preferences by UserManager.preferences.collectAsState()
+
+    val preferencesSubtitle = buildPreferencesSubtitle(preferences)
 
     LazyColumn(
         modifier = Modifier
@@ -96,7 +105,7 @@ fun SettingsScreen(
             SettingsRow(
                 icon = Icons.Default.Person,
                 title = "Preferences",
-                subtitle = "Dietary restrictions, skill level, favorite cuisines",
+                subtitle = preferencesSubtitle,
                 onClick = onPreferences,
             )
             SettingsRow(
@@ -187,13 +196,13 @@ fun SettingsScreen(
                 icon = Icons.Default.Description,
                 title = "Terms & Conditions",
                 subtitle = "Read our terms of service",
-                onClick = { /* open terms */ },
+                onClick = onTerms,
             )
             SettingsRow(
                 icon = Icons.Default.PrivacyTip,
                 title = "Privacy Policy",
                 subtitle = "How we handle your data",
-                onClick = { /* open privacy */ },
+                onClick = onPrivacy,
             )
         }
 
@@ -284,4 +293,13 @@ private fun SettingsRow(
             modifier = Modifier.size(20.dp),
         )
     }
+}
+
+private fun buildPreferencesSubtitle(prefs: UserManager.UserPreferences): String {
+    val parts = mutableListOf<String>()
+    if (prefs.skillLevel.isNotBlank()) parts.add(prefs.skillLevel)
+    if (prefs.dietaryTags.isNotEmpty()) parts.add(prefs.dietaryTags.take(2).joinToString(", "))
+    if (prefs.favoriteCuisines.isNotEmpty()) parts.add(prefs.favoriteCuisines.take(2).joinToString(", "))
+    if (prefs.allergies.isNotEmpty()) parts.add("Avoid: ${prefs.allergies.take(2).joinToString(", ")}")
+    return if (parts.isEmpty()) "Dietary restrictions, skill level, favorite cuisines" else parts.joinToString(" · ")
 }

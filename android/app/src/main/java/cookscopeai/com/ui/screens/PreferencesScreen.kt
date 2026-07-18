@@ -1,10 +1,7 @@
 package cookscopeai.com.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,14 +10,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -33,151 +29,156 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import cookscopeai.com.data.UserManager
 import cookscopeai.com.ui.theme.GoldPrimary
 
+/**
+ * In-app Preferences screen. Lets users update their dietary tags, skill
+ * level, favorite cuisines, and allergies. Values are seeded from
+ * [UserManager.preferences] and written back to it on save.
+ *
+ * Uses the same multi-select options as onboarding so users can edit
+ * their choices consistently.
+ */
 @Composable
 fun PreferencesScreen(onBack: () -> Unit) {
-    val profile by UserManager.profile.collectAsState()
-
-    var skillLevel by remember { mutableStateOf("Intermediate") }
-    var dietaryTag by remember { mutableStateOf("None") }
-    var favoriteCuisine by remember { mutableStateOf("Italian") }
-    var allergies by remember { mutableStateOf("None") }
-
+    val saved by UserManager.preferences.collectAsState()
     val skillOptions = listOf("Beginner", "Amateur", "Intermediate", "Home Cook", "Professional", "Chef-Level")
-    val dietaryOptions = listOf("None", "Vegetarian", "Vegan", "Gluten-Free", "Keto", "Paleo", "Pescatarian", "Low-Carb", "Dairy-Free", "Nut-Free", "Halal", "Kosher")
-    val cuisineOptions = listOf("Italian", "Japanese", "Mexican", "Mediterranean", "Indian", "Thai", "Korean", "American", "Chinese", "French", "Vietnamese", "Spanish", "Moroccan", "Greek", "Brazilian", "Caribbean", "Turkish", "Lebanese", "Middle Eastern", "German")
-    val allergyOptions = listOf("None", "Peanuts", "Shellfish", "Dairy", "Eggs", "Soy", "Wheat", "Fish", "Tree Nuts")
+    val dietaryOptions = listOf(
+        "Vegetarian", "Vegan", "Gluten-Free", "Keto", "Paleo", "Pescatarian",
+        "Low-Carb", "Dairy-Free", "Nut-Free", "Halal", "Kosher",
+    )
+    val cuisineOptions = listOf(
+        "Italian", "Japanese", "Mexican", "Mediterranean", "Indian", "Thai",
+        "Korean", "American", "Chinese", "French", "Vietnamese", "Spanish",
+        "Moroccan", "Greek", "Brazilian", "Caribbean", "Turkish", "Lebanese",
+        "Middle Eastern", "German",
+    )
+    val allergyOptions = listOf(
+        "Peanuts", "Shellfish", "Dairy", "Eggs", "Soy", "Wheat", "Fish", "Tree Nuts",
+    )
 
-    LazyColumn(
+    var selectedSkill by remember(saved) { mutableStateOf(saved.skillLevel) }
+    var selectedDietary by remember(saved) { mutableStateOf(saved.dietaryTags.toSet()) }
+    var selectedCuisines by remember(saved) { mutableStateOf(saved.favoriteCuisines.toSet()) }
+    var selectedAllergies by remember(saved) { mutableStateOf(saved.allergies.toSet()) }
+
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(bottom = 32.dp),
     ) {
         // Top bar
-        item {
-            Row(
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp, start = 4.dp, end = 16.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = MaterialTheme.colorScheme.onBackground,
+                )
+            }
+            Text(
+                "Preferences",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onBackground,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 24.dp),
+        ) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Update your cooking preferences",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Spacer(Modifier.height(24.dp))
+
+            PreferenceSectionTitle("Skill Level")
+            Spacer(Modifier.height(10.dp))
+            PreferenceOptionsGrid(
+                options = skillOptions,
+                selected = setOf(selectedSkill),
+                onToggle = { selectedSkill = it },
+                singleSelect = true,
+            )
+
+            Spacer(Modifier.height(24.dp))
+
+            PreferenceSectionTitle("Dietary Restrictions")
+            Spacer(Modifier.height(10.dp))
+            PreferenceOptionsGrid(
+                options = dietaryOptions,
+                selected = selectedDietary,
+                onToggle = { selectedDietary = togglePreferenceSet(selectedDietary, it) },
+            )
+
+            Spacer(Modifier.height(24.dp))
+
+            PreferenceSectionTitle("Favorite Cuisines")
+            Spacer(Modifier.height(10.dp))
+            PreferenceOptionsGrid(
+                options = cuisineOptions,
+                selected = selectedCuisines,
+                onToggle = { selectedCuisines = togglePreferenceSet(selectedCuisines, it) },
+            )
+
+            Spacer(Modifier.height(24.dp))
+
+            PreferenceSectionTitle("Allergies")
+            Spacer(Modifier.height(10.dp))
+            PreferenceOptionsGrid(
+                options = allergyOptions,
+                selected = selectedAllergies,
+                onToggle = { selectedAllergies = togglePreferenceSet(selectedAllergies, it) },
+            )
+
+            Spacer(Modifier.height(32.dp))
+
+            Button(
+                onClick = {
+                    UserManager.updatePreferences(
+                        UserManager.UserPreferences(
+                            dietaryTags = selectedDietary.toList(),
+                            skillLevel = selectedSkill,
+                            favoriteCuisines = selectedCuisines.toList(),
+                            allergies = selectedAllergies.toList(),
+                        )
+                    )
+                    onBack()
+                },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 16.dp, start = 4.dp, end = 16.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .height(56.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = GoldPrimary,
+                    contentColor = Color.Black,
+                ),
             ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onBackground,
-                    )
-                }
                 Text(
-                    "Preferences",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
+                    "Save Preferences",
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                 )
             }
-        }
 
-        item {
-            Column(
-                modifier = Modifier.padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
-            ) {
-                PreferenceSelector(
-                    title = "Skill Level",
-                    subtitle = "Your cooking expertise",
-                    options = skillOptions,
-                    selected = skillLevel,
-                    onSelect = { skillLevel = it },
-                )
-                PreferenceSelector(
-                    title = "Dietary Restrictions",
-                    subtitle = "Foods you avoid",
-                    options = dietaryOptions,
-                    selected = dietaryTag,
-                    onSelect = { dietaryTag = it },
-                )
-                PreferenceSelector(
-                    title = "Favorite Cuisine",
-                    subtitle = "Your preferred cooking style",
-                    options = cuisineOptions,
-                    selected = favoriteCuisine,
-                    onSelect = { favoriteCuisine = it },
-                )
-                PreferenceSelector(
-                    title = "Allergies",
-                    subtitle = "Ingredients to avoid",
-                    options = allergyOptions,
-                    selected = allergies,
-                    onSelect = { allergies = it },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun PreferenceSelector(
-    title: String,
-    subtitle: String,
-    options: List<String>,
-    selected: String,
-    onSelect: (String) -> Unit,
-) {
-    Column {
-        Text(
-            title,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            subtitle,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(10.dp))
-        options.forEach { option ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(
-                        if (option == selected) GoldPrimary.copy(alpha = 0.12f)
-                        else MaterialTheme.colorScheme.surface
-                    )
-                    .border(
-                        width = if (option == selected) 1.5.dp else 0.dp,
-                        color = if (option == selected) GoldPrimary else Color.Transparent,
-                        shape = RoundedCornerShape(12.dp),
-                    )
-                    .clickable { onSelect(option) }
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(
-                    option,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = if (option == selected) GoldPrimary else MaterialTheme.colorScheme.onBackground,
-                    fontWeight = if (option == selected) FontWeight.SemiBold else FontWeight.Normal,
-                )
-                if (option == selected) {
-                    Icon(
-                        Icons.Default.Check,
-                        contentDescription = null,
-                        tint = GoldPrimary,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-            }
+            Spacer(Modifier.height(24.dp))
         }
     }
 }
