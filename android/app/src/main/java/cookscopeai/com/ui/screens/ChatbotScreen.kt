@@ -76,6 +76,8 @@ import cookscopeai.com.data.ChatHistoryManager.ChatMessage as StoredChatMessage
 import cookscopeai.com.data.ChatService
 import cookscopeai.com.data.ChatUsageManager
 import cookscopeai.com.data.SubscriptionManager
+import cookscopeai.com.ui.components.ChatBubbleSkeleton
+import cookscopeai.com.ui.components.ShimmerDots
 import cookscopeai.com.ui.components.SmoothInput
 import cookscopeai.com.ui.theme.GoldDeep
 import cookscopeai.com.ui.theme.GoldLight
@@ -717,8 +719,13 @@ private fun ChatMessageBubble(
         }
 
         if (bubble.isTyping) {
+            // Shimmer skeleton: looks like the assistant's reply is being written.
+            // The number of lines is randomized per bubble so repeated typing
+            // states don't feel mechanical.
+            val lineCount = remember(bubble.id) { (2..3).random() }
             Box(
                 modifier = Modifier
+                    .widthIn(max = (LocalConfiguration.current.screenWidthDp * maxWidthFraction).dp)
                     .clip(
                         RoundedCornerShape(
                             topStart = 4.dp,
@@ -728,13 +735,36 @@ private fun ChatMessageBubble(
                         )
                     )
                     .background(
-                        MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
+                        Brush.horizontalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                            )
+                        )
                     )
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    repeat(3) { i ->
-                        DotPulse(delayMs = i * 200)
+                Column {
+                    repeat(lineCount) { i ->
+                        val fraction = if (i == lineCount - 1) 0.6f else 0.95f
+                        ShimmerLine(
+                            fraction = fraction,
+                            modifier = Modifier.padding(top = if (i == 0) 0.dp else 6.dp),
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        ShimmerDots()
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "CookScope is thinking…",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = GoldPrimary.copy(alpha = 0.75f),
+                            fontWeight = FontWeight.Medium,
+                        )
                     }
                 }
             }
@@ -782,27 +812,33 @@ private fun ChatMessageBubble(
 }
 
 @Composable
-private fun DotPulse(delayMs: Int) {
-    val infiniteTransition = rememberInfiniteTransition(label = "dot")
-    val scale by infiniteTransition.animateFloat(
-        initialValue = 0.6f,
-        targetValue = 1f,
+private fun ShimmerLine(
+    fraction: Float,
+    modifier: Modifier = Modifier,
+) {
+    val transition = rememberInfiniteTransition(label = "shimmerLine")
+    val translate by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1000f,
         animationSpec = infiniteRepeatable(
-            animation = tween(
-                durationMillis = 600,
-                delayMillis = delayMs,
-            ),
-            repeatMode = RepeatMode.Reverse,
+            animation = tween(1200),
+            repeatMode = RepeatMode.Restart,
         ),
-        label = "scale$delayMs",
+        label = "shimmerLineTranslate",
+    )
+    val base = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.18f)
+    val highlight = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.32f)
+    val brush = Brush.linearGradient(
+        colors = listOf(base, highlight, base),
+        start = androidx.compose.ui.geometry.Offset(translate - 300f, 0f),
+        end = androidx.compose.ui.geometry.Offset(translate, 0f),
     )
     Box(
-        modifier = Modifier
-            .size(6.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .background(
-                GoldPrimary.copy(alpha = 0.4f * scale + 0.2f)
-            ),
+        modifier = modifier
+            .fillMaxWidth(fraction)
+            .height(11.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(brush),
     )
 }
 
