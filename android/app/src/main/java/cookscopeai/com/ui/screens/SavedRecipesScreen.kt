@@ -1,5 +1,6 @@
 package cookscopeai.com.ui.screens
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,13 +22,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -42,6 +49,7 @@ import cookscopeai.com.data.RecipeData
 import cookscopeai.com.data.UserManager
 import cookscopeai.com.ui.theme.GoldPrimary
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SavedRecipesScreen(
     onBack: () -> Unit,
@@ -107,71 +115,136 @@ fun SavedRecipesScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Swipe a recipe left to remove it",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    )
                 }
             }
         } else {
-            items(savedRecipes) { recipe ->
-                Row(
+            items(savedRecipes, key = { it.id }) { recipe ->
+                val dismissState = rememberSwipeToDismissBoxState(
+                    confirmValueChange = { value ->
+                        if (value != SwipeToDismissBoxValue.Settled) {
+                            UserManager.toggleSavedRecipe(recipe.id)
+                            true
+                        } else {
+                            false
+                        }
+                    },
+                    positionalThreshold = { it * 0.5f },
+                )
+
+                SwipeToDismissBox(
+                    state = dismissState,
+                    backgroundContent = {
+                        SwipeDeleteBackground(progress = dismissState.dismissDirection)
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                        .clickable { onRecipeClick(recipe.id) }
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
                 ) {
-                    Box(
+                    Row(
                         modifier = Modifier
-                            .size(64.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surface),
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(MaterialTheme.colorScheme.surface)
+                            .clickable { onRecipeClick(recipe.id) }
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        AsyncImage(
-                            model = recipe.imageUrl,
-                            contentDescription = recipe.title,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop,
-                        )
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            recipe.title,
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            "${recipe.cuisine} • ${recipe.cookTimeMin} min",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.Star,
-                                contentDescription = null,
-                                tint = GoldPrimary,
-                                modifier = Modifier.size(14.dp),
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                "${recipe.rating} • ${recipe.authorName}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = GoldPrimary,
-                                fontWeight = FontWeight.Medium,
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surface),
+                        ) {
+                            AsyncImage(
+                                model = recipe.imageUrl,
+                                contentDescription = recipe.title,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
                             )
                         }
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                recipe.title,
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onBackground,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                "${recipe.cuisine} • ${recipe.cookTimeMin} min",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Star,
+                                    contentDescription = null,
+                                    tint = GoldPrimary,
+                                    modifier = Modifier.size(14.dp),
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    "${recipe.rating} • ${recipe.authorName}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = GoldPrimary,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                            }
+                        }
+                        Icon(
+                            Icons.Default.Bookmark,
+                            contentDescription = "Saved",
+                            tint = GoldPrimary,
+                            modifier = Modifier.size(20.dp),
+                        )
                     }
-                    Icon(
-                        Icons.Default.Bookmark,
-                        contentDescription = "Saved",
-                        tint = GoldPrimary,
-                        modifier = Modifier.size(20.dp),
-                    )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SwipeDeleteBackground(progress: SwipeToDismissBoxValue) {
+    val color = Color(0xFFE53935)
+    val alignment = if (progress == SwipeToDismissBoxValue.EndToStart) {
+        Alignment.CenterEnd
+    } else {
+        Alignment.CenterStart
+    }
+    val padEnd = if (progress == SwipeToDismissBoxValue.EndToStart) 20.dp else 0.dp
+    val padStart = if (progress == SwipeToDismissBoxValue.StartToEnd) 20.dp else 0.dp
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clip(RoundedCornerShape(14.dp))
+            .background(color)
+            .padding(start = padStart, end = padEnd),
+        contentAlignment = alignment,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Default.Delete,
+                contentDescription = "Remove",
+                tint = Color.White,
+                modifier = Modifier.size(22.dp),
+            )
+            if (progress == SwipeToDismissBoxValue.StartToEnd) {
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Remove",
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
             }
         }
     }

@@ -218,6 +218,8 @@ object AuthManager {
 
     /**
      * Sign out and clear the current session.
+     * Also clears locally-stored chat history and usage counters so the
+     * next user starts with a clean slate.
      */
     suspend fun signOut() {
         try {
@@ -226,6 +228,7 @@ object AuthManager {
             // Even if signOut fails (e.g., network), the local session is cleared
             // by supabase-kt, so we ignore.
         }
+        ChatHistoryManager.clearAll()
     }
 
     // ---- Helpers ----

@@ -31,6 +31,9 @@ import kotlinx.serialization.json.put
  *
  * Routed through the Rork toolkit proxy which handles authentication and billing.
  * Supported parameters: max_tokens, temperature, stop, tools, tool_choice, reasoning, include_reasoning
+ *
+ * This client is model-agnostic: callers pass a model ID (e.g. deepseek/deepseek-v4-flash
+ * for free-tier chat, openai/gpt-4o for premium chat, or the default for recipe generation).
  */
 class DeepSeekService {
 
@@ -69,6 +72,7 @@ class DeepSeekService {
         maxTokens: Int = 4096,
         thinking: Boolean = false,
         reasoningEffort: String = "medium",
+        model: String = MODEL_DEFAULT,
     ): Result<CompletionResult> {
         return try {
             val messagesArray = buildJsonArray {
@@ -81,7 +85,7 @@ class DeepSeekService {
             }
 
             val requestBody = buildJsonObject {
-                put("model", MODEL)
+                put("model", model)
                 put("messages", messagesArray)
                 put("temperature", temperature)
                 put("top_p", 0.95)
@@ -137,10 +141,11 @@ class DeepSeekService {
         maxTokens: Int = 4096,
         thinking: Boolean = false,
         reasoningEffort: String = "medium",
+        model: String = MODEL_DEFAULT,
     ): Result<String> {
         return try {
             val requestBody = buildJsonObject {
-                put("model", MODEL)
+                put("model", model)
                 put("messages", messagesJson)
                 put("temperature", temperature)
                 put("top_p", 0.95)
@@ -189,8 +194,9 @@ class DeepSeekService {
         maxTokens: Int = 4096,
         thinking: Boolean = false,
         reasoningEffort: String = "medium",
+        model: String = MODEL_DEFAULT,
     ): Result<String> {
-        return complete(messages, temperature, maxTokens, thinking, reasoningEffort)
+        return complete(messages, temperature, maxTokens, thinking, reasoningEffort, model)
             .map { it.content }
     }
 
@@ -199,6 +205,13 @@ class DeepSeekService {
     }
 
     companion object {
-        private const val MODEL = "deepseek/deepseek-v4-flash"
+        /** Default model for recipe generation and dish scan (DeepSeek). */
+        const val MODEL_DEFAULT = "deepseek/deepseek-v4-flash"
+
+        /** Free-tier chatbot model. */
+        const val MODEL_CHAT_FREE = "deepseek/deepseek-v4-flash"
+
+        /** Premium-tier chatbot model. */
+        const val MODEL_CHAT_PREMIUM = "openai/gpt-4o"
     }
 }
