@@ -108,7 +108,7 @@ object AuthManager {
         } catch (e: RestException) {
             AuthResult.Error(mapRestError(e))
         } catch (e: Exception) {
-            AuthResult.Error(e.message ?: "Sign up failed. Please try again.")
+            AuthResult.Error("Sign up failed. Please check your details and try again.")
         }
     }
 
@@ -125,7 +125,7 @@ object AuthManager {
         } catch (e: RestException) {
             AuthResult.Error(mapRestError(e))
         } catch (e: Exception) {
-            AuthResult.Error(e.message ?: "Sign in failed. Please try again.")
+            AuthResult.Error("Sign in failed. Please check your email and password.")
         }
     }
 
@@ -194,7 +194,7 @@ object AuthManager {
         } catch (e: RestException) {
             AuthResult.Error(mapRestError(e))
         } catch (e: Exception) {
-            AuthResult.Error(e.message ?: "Google sign-in failed. Please try again.")
+            AuthResult.Error("Google sign-in failed. Please try again.")
         }
     }
 
@@ -212,7 +212,7 @@ object AuthManager {
         } catch (e: RestException) {
             AuthResult.Error(mapRestError(e))
         } catch (e: Exception) {
-            AuthResult.Error(e.message ?: "Could not resend email. Please try again.")
+            AuthResult.Error("Could not resend email. Please try again.")
         }
     }
 
@@ -243,29 +243,42 @@ object AuthManager {
     }
 
     private fun mapRestError(e: RestException): String {
-        val msg = e.message.orEmpty()
+        val msg = e.message.orEmpty().lowercase()
         return when {
-            msg.contains("Invalid login credentials", ignoreCase = true) ||
-                msg.contains("Invalid credentials", ignoreCase = true) ->
+            msg.contains("weak_password") ||
+                msg.contains("password should be") ||
+                msg.contains("password should contain") ->
+                "Password is too weak. Use at least 6 characters with a mix of letters and numbers."
+
+            msg.contains("invalid login credentials") ||
+                msg.contains("invalid credentials") ->
                 "Incorrect email or password."
 
-            msg.contains("User already registered", ignoreCase = true) ||
-                msg.contains("already been registered", ignoreCase = true) ->
+            msg.contains("user already registered") ||
+                msg.contains("already been registered") ->
                 "An account with this email already exists. Try signing in."
 
-            msg.contains("Email not confirmed", ignoreCase = true) ->
+            msg.contains("email not confirmed") ->
                 "Please confirm your email before signing in. Check your inbox."
 
-            msg.contains("Password should be", ignoreCase = true) ->
-                "Password must be at least 6 characters."
-
-            msg.contains("rate limit", ignoreCase = true) ->
+            msg.contains("rate limit") ->
                 "Too many attempts. Please wait a moment and try again."
 
-            msg.contains("network", ignoreCase = true) ->
+            msg.contains("network") ||
+                msg.contains("timeout") ||
+                msg.contains("unable to resolve") ->
                 "Network error. Check your connection and try again."
 
-            else -> msg.ifBlank { "Something went wrong. Please try again." }
+            msg.contains("invalid email") ||
+                msg.contains("email format") ->
+                "Please enter a valid email address."
+
+            msg.contains("user not found") ->
+                "No account found with that email. Try signing up."
+
+            // Never return the raw Supabase error text — it may contain URLs,
+            // headers, or the anon key. Fall back to a generic safe message.
+            else -> "Something went wrong. Please try again."
         }
     }
 }

@@ -65,7 +65,7 @@ class DishScanService {
             )
 
             if (result.isFailure) {
-                return Result.failure(result.exceptionOrNull() ?: Exception("Scan failed"))
+                return Result.failure(result.exceptionOrNull() ?: Exception("Dish scan failed"))
             }
 
             val content = result.getOrThrow()

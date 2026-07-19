@@ -114,7 +114,7 @@ object SubscriptionManager {
             _isLoading.value = false
             _isPremium.value
         } catch (e: Exception) {
-            _error.value = e.message ?: "Purchase failed"
+            _error.value = "Purchase failed. Please try again."
             _isLoading.value = false
             false
         }
@@ -132,7 +132,7 @@ object SubscriptionManager {
             _isLoading.value = false
             _isPremium.value
         } catch (e: Exception) {
-            _error.value = e.message ?: "Restore failed"
+            _error.value = "Restore failed. Please try again."
             _isLoading.value = false
             false
         }

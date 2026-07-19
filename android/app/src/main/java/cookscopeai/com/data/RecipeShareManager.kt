@@ -92,8 +92,7 @@ object RecipeShareManager {
             }
             context.startActivity(chooser)
             true
-        } catch (e: Exception) {
-            android.util.Log.e(TAG, "Failed to share recipe", e)
+        } catch (_: Exception) {
             false
         }
     }
@@ -107,8 +106,7 @@ object RecipeShareManager {
                 .build()
             val result = loader.execute(request)
             result.image?.toBitmap()
-        } catch (e: Exception) {
-            android.util.Log.w(TAG, "Image load failed for share card", e)
+        } catch (_: Exception) {
             null
         }
     }

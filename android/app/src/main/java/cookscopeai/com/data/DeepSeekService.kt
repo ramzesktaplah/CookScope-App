@@ -109,8 +109,7 @@ class DeepSeekService {
             }
 
             if (response.status.value !in 200..299) {
-                val errorBody = response.bodyAsText()
-                return Result.failure(Exception("DeepSeek request failed: ${response.status.value} - $errorBody"))
+                return Result.failure(Exception("AI service error: ${response.status.value}"))
             }
 
             val responseText = response.bodyAsText()
@@ -169,8 +168,7 @@ class DeepSeekService {
             }
 
             if (response.status.value !in 200..299) {
-                val errorBody = response.bodyAsText()
-                return Result.failure(Exception("DeepSeek request failed: ${response.status.value} - $errorBody"))
+                return Result.failure(Exception("AI service error: ${response.status.value}"))
             }
 
             val responseText = response.bodyAsText()
