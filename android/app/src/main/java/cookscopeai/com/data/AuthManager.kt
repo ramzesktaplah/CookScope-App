@@ -138,16 +138,15 @@ object AuthManager {
      * 3. Call CredentialManager.getCredential → extract GoogleIdTokenCredential.
      * 4. Send the ID token + raw nonce to Supabase via signInWith(IDToken).
      *
-     * Requires Google Web Client ID configured in ConfigExtensions.kt.
+     * Requires Google Web Client ID configured in build config.
      * On the cloud emulator, will throw "No credentials available" if no
      * Google account is present on the device — this is expected.
      */
     suspend fun signInWithGoogle(context: Context): AuthResult {
         val serverClientId = cookscopeai.com.Config.GOOGLE_WEB_CLIENT_ID
-        if (serverClientId.startsWith("REPLACE_WITH_")) {
+        if (serverClientId.startsWith("REPLACE_WITH_") || serverClientId.isBlank()) {
             return AuthResult.Error(
-                "Google Sign-In is not configured yet. Use email/password, " +
-                    "or set your Google Web Client ID in ConfigExtensions.kt."
+                "Google Sign-In is not available right now. Please use email/password instead."
             )
         }
 

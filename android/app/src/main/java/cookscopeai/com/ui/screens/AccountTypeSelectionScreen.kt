@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -32,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,6 +48,7 @@ import cookscopeai.com.data.model.UserRole
 import cookscopeai.com.ui.theme.GoldDeep
 import cookscopeai.com.ui.theme.GoldPrimary
 import cookscopeai.com.ui.theme.LightOnboardingTheme
+import kotlinx.coroutines.launch
 
 /**
  * Account Type selection — Chef/Teacher or Learner.
@@ -63,6 +66,9 @@ fun AccountTypeSelectionScreen(
 ) {
     LightOnboardingTheme {
         var selectedRole by remember { mutableStateOf<UserRole?>(null) }
+        var isSaving by remember { mutableStateOf(false) }
+        var error by remember { mutableStateOf<String?>(null) }
+        val scope = rememberCoroutineScope()
 
         Box(
             modifier = Modifier
@@ -136,12 +142,31 @@ fun AccountTypeSelectionScreen(
 
                 Spacer(Modifier.height(32.dp))
 
+                if (error != null) {
+                    Text(
+                        error!!,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFFE53935),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+
                 Button(
                     onClick = {
                         val role = selectedRole ?: return@Button
-                        UserManager.updateProfile(role = role)
-                        UserManager.setRoleLocked()
-                        onContinue()
+                        isSaving = true
+                        error = null
+                        scope.launch {
+                            val saved = UserManager.lockRole(role)
+                            isSaving = false
+                            if (saved) {
+                                onContinue()
+                            } else {
+                                error = "Could not save your choice. Check your connection and try again."
+                            }
+                        }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -151,13 +176,21 @@ fun AccountTypeSelectionScreen(
                         containerColor = GoldPrimary,
                         contentColor = Color.Black,
                     ),
-                    enabled = selectedRole != null,
+                    enabled = selectedRole != null && !isSaving,
                 ) {
-                    Text(
-                        "Continue",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
+                    if (isSaving) {
+                        CircularProgressIndicator(
+                            color = Color.Black,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    } else {
+                        Text(
+                            "Continue",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(24.dp))

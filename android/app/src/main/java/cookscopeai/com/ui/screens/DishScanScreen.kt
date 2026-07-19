@@ -177,7 +177,7 @@ fun DishScanScreen(
                     analysisResult = it
                     ScanUsageManager.increment()
                 },
-                onFailure = { errorMessage = it.message ?: "Analysis failed" }
+                onFailure = { errorMessage = "Analysis failed. Please try again." }
             )
         }
     }

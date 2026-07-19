@@ -278,11 +278,13 @@ object UserManager {
     /**
      * Persist the current local profile to the `profiles` table.
      * Creates a new row if none exists, otherwise upserts.
+     *
+     * @return true if the remote write succeeded, false otherwise.
      */
-    suspend fun pushProfileToRemote() {
+    suspend fun pushProfileToRemote(): Boolean {
         val uid = _profile.value.id
-        if (uid == "local_user") return
-        try {
+        if (uid == "local_user") return false
+        return try {
             val dto = ProfileDto(
                 id = uid,
                 username = _profile.value.username,
@@ -297,8 +299,9 @@ object UserManager {
             )
             SupabaseClient.client.postgrest["profiles"].upsert(dto)
             _hasRemoteProfile.value = true
+            true
         } catch (_: Exception) {
-            // Best-effort; local state remains.
+            false
         }
     }
 
@@ -323,8 +326,23 @@ object UserManager {
     }
 
     /**
+     * Lock the role after onboarding selection. Writes the role and locked
+     * flag locally and to the remote profile row, then returns whether the
+     * remote write succeeded. The caller should not navigate forward until
+     * this returns true, so the account type screen never reappears.
+     */
+    suspend fun lockRole(role: UserRole): Boolean {
+        _profile.value = _profile.value.copy(role = role)
+        _isRoleLocked.value = true
+        saveProfile()
+        return pushProfileToRemote()
+    }
+
+    /**
      * Lock the role after onboarding selection. Writes the locked flag
      * locally and to the remote profile row.
+     *
+     * Kept for callers that don't need to await the result.
      */
     fun setRoleLocked() {
         _isRoleLocked.value = true
