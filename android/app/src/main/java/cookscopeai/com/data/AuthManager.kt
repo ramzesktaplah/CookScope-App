@@ -41,6 +41,19 @@ sealed class AuthResult {
 }
 
 /**
+ * Tracks which auth screen the current session originated from, so root
+ * navigation can apply the correct post-auth routing:
+ *  - SIGNUP  → new user → walk through account type + preferences + paywall
+ *  - LOGIN   → returning user → go straight to Home (skip onboarding)
+ *  - UNKNOWN → restored session on app launch → decide from remote flags
+ */
+enum class AuthEntryPoint {
+    UNKNOWN,
+    SIGNUP,
+    LOGIN,
+}
+
+/**
  * Manages Supabase Auth session state for CookScope.
  *
  * Exposes a [sessionStatus] StateFlow that drives the root navigation graph:
@@ -62,6 +75,18 @@ object AuthManager {
 
     private val _sessionStatus = MutableStateFlow<SessionStatus>(SessionStatus.Initializing)
     val sessionStatus: StateFlow<SessionStatus> = _sessionStatus.asStateFlow()
+
+    /**
+     * Records which auth screen produced the current session, so root
+     * navigation can apply the correct post-auth routing:
+     *  - SIGNUP  → new user, walk through the full onboarding flow
+     *  - LOGIN   → returning user, skip straight to Home
+     *  - UNKNOWN → restored session on app launch, decide from remote flags
+     *
+     * Reset to UNKNOWN on signOut.
+     */
+    private val _authEntryPoint = MutableStateFlow(AuthEntryPoint.UNKNOWN)
+    val authEntryPoint: StateFlow<AuthEntryPoint> = _authEntryPoint.asStateFlow()
 
     /**
      * Initialize the AuthManager. Call once from MainActivity.onCreate
@@ -104,6 +129,7 @@ object AuthManager {
                     put("display_name", username.trim())
                 }
             }
+            _authEntryPoint.value = AuthEntryPoint.SIGNUP
             AuthResult.Success
         } catch (e: RestException) {
             AuthResult.Error(mapRestError(e))
@@ -121,6 +147,7 @@ object AuthManager {
                 this.email = email.trim()
                 this.password = password
             }
+            _authEntryPoint.value = AuthEntryPoint.LOGIN
             AuthResult.Success
         } catch (e: RestException) {
             AuthResult.Error(mapRestError(e))
@@ -142,7 +169,7 @@ object AuthManager {
      * On the cloud emulator, will throw "No credentials available" if no
      * Google account is present on the device — this is expected.
      */
-    suspend fun signInWithGoogle(context: Context): AuthResult {
+    suspend fun signInWithGoogle(context: Context, isSignUp: Boolean): AuthResult {
         val serverClientId = cookscopeai.com.Config.GOOGLE_WEB_CLIENT_ID
         if (serverClientId.startsWith("REPLACE_WITH_") || serverClientId.isBlank()) {
             return AuthResult.Error(
@@ -178,6 +205,7 @@ object AuthManager {
                 provider = Google
                 nonce = rawNonce
             }
+            _authEntryPoint.value = if (isSignUp) AuthEntryPoint.SIGNUP else AuthEntryPoint.LOGIN
             AuthResult.Success
         } catch (e: GetCredentialException) {
             AuthResult.Error(
@@ -221,6 +249,7 @@ object AuthManager {
      * next user starts with a clean slate.
      */
     suspend fun signOut() {
+        _authEntryPoint.value = AuthEntryPoint.UNKNOWN
         try {
             SupabaseClient.client.auth.signOut()
         } catch (_: Exception) {

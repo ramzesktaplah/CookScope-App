@@ -17,6 +17,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import cookscopeai.com.data.AuthEntryPoint
 import cookscopeai.com.data.AuthManager
 import cookscopeai.com.data.UserManager
 import cookscopeai.com.ui.screens.AccountTypeSelectionScreen
@@ -45,18 +46,22 @@ import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.launch
 
 /**
- * Root navigation graph. Decides between the onboarding/auth flow and
- * the main app based on the Supabase Auth session status:
+ * Root navigation graph. Routes based on the Supabase Auth session status
+ * and the auth entry point (sign-up vs sign-in):
  *
  *  - Initializing      → splash spinner
- *  - NotAuthenticated  → welcome → signup → verify → (login) →
- *                        account type → preferences → paywall → main
+ *  - NotAuthenticated  → welcome → signup/login → …
  *  - Authenticated     → main app (Home, Explore, Chat, Create, Profile)
  *
- * On an authenticated session, onboarding completion is checked:
- *  - If role not yet locked  → account type screen
- *  - If onboarding not done  → onboarding preferences
- *  - Otherwise               → straight to Home.
+ * Post-auth routing depends on how the session was established:
+ *  - SIGNUP  (new user via the sign-up screen)   → full onboarding:
+ *      account type → preferences → paywall → home
+ *  - LOGIN   (returning user via the sign-in screen) → straight to Home
+ *      (account type and preferences are never re-shown — the role is
+ *      already locked and onboarding already complete remotely)
+ *  - UNKNOWN (session restored on app launch) → decide from remote flags:
+ *      role not locked → account type; onboarding not done → preferences;
+ *      otherwise → home.
  */
 @Composable
 fun AppNavigation() {
@@ -64,6 +69,7 @@ fun AppNavigation() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val sessionStatus by AuthManager.sessionStatus.collectAsState()
+    val authEntryPoint by AuthManager.authEntryPoint.collectAsState()
     val isOnboardingComplete by UserManager.isOnboardingComplete.collectAsState()
     val isRoleLocked by UserManager.isRoleLocked.collectAsState()
     val isProfileLoading by UserManager.isProfileLoading.collectAsState()
@@ -73,15 +79,15 @@ fun AppNavigation() {
     val showBottomBar = currentRoute in mainRoutes
     val context = androidx.compose.ui.platform.LocalContext.current
 
-    // Determine the start destination based on auth + onboarding state.
+    // Determine the start destination based on auth + entry point + onboarding state.
     val startDestination: String = when (val s = sessionStatus) {
         is SessionStatus.Initializing -> "splash"
         is SessionStatus.NotAuthenticated -> "welcome"
-        is SessionStatus.Authenticated -> when {
-            !isRoleLocked -> "account_type"
-            !isOnboardingComplete -> "onboarding_preferences"
-            else -> "home"
-        }
+        is SessionStatus.Authenticated -> postAuthDestination(
+            entryPoint = authEntryPoint,
+            isRoleLocked = isRoleLocked,
+            isOnboardingComplete = isOnboardingComplete,
+        )
         else -> "splash" // RefreshFailure or unknown → show splash briefly
     }
 
@@ -90,19 +96,19 @@ fun AppNavigation() {
     // forward from an auth screen — otherwise returning users would be sent
     // back through onboarding because the flags are still false while the
     // profile is loading.
-    LaunchedEffect(isProfileLoading, sessionStatus) {
+    LaunchedEffect(isProfileLoading, sessionStatus, authEntryPoint) {
         val s = sessionStatus
         val route = currentRoute
         if (s is SessionStatus.Authenticated && !isProfileLoading) {
             // If we're on an auth screen when the session becomes
             // authenticated (and profile is loaded), jump forward to the
-            // next onboarding step (or home if already onboarded).
+            // correct destination based on how the session was established.
             if (route in listOf("welcome", "signup", "verify", "login")) {
-                val target = when {
-                    !isRoleLocked -> "account_type"
-                    !isOnboardingComplete -> "onboarding_preferences"
-                    else -> "home"
-                }
+                val target = postAuthDestination(
+                    entryPoint = authEntryPoint,
+                    isRoleLocked = isRoleLocked,
+                    isOnboardingComplete = isOnboardingComplete,
+                )
                 navController.navigate(target) {
                     popUpTo("welcome") { inclusive = true }
                 }
@@ -157,6 +163,12 @@ fun AppNavigation() {
             modifier = Modifier.fillMaxSize().padding(innerPadding)
         ) {
             composable("splash") { /* handled above */ }
+
+            // Helper: compute the destination after an authenticated session
+            // is established. LOGIN always goes straight to Home; SIGNUP walks
+            // through onboarding based on the remote flags; UNKNOWN (restored
+            // session) falls back to the remote flags.
+            // (Defined as a top-level helper below.)
 
             // ---- Onboarding / Auth flow ----
             composable("welcome") {
@@ -320,5 +332,31 @@ fun AppNavigation() {
                 )
             }
         }
+    }
+}
+
+/**
+ * Compute the destination route after an authenticated session is
+ * established and the remote profile has finished loading.
+ *
+ *  - LOGIN   → returning user → straight to Home (never re-show account
+ *              type or preferences, even if remote flags are somehow false)
+ *  - SIGNUP  → new user → walk through onboarding based on remote flags:
+ *              role not locked → account type; onboarding not done →
+ *              preferences; otherwise → home (already onboarded somehow)
+ *  - UNKNOWN → session restored on app launch → decide from remote flags:
+ *              role not locked → account type; onboarding not done →
+ *              preferences; otherwise → home.
+ */
+private fun postAuthDestination(
+    entryPoint: AuthEntryPoint,
+    isRoleLocked: Boolean,
+    isOnboardingComplete: Boolean,
+): String = when (entryPoint) {
+    AuthEntryPoint.LOGIN -> "home"
+    AuthEntryPoint.SIGNUP, AuthEntryPoint.UNKNOWN -> when {
+        !isRoleLocked -> "account_type"
+        !isOnboardingComplete -> "onboarding_preferences"
+        else -> "home"
     }
 }

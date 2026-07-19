@@ -265,7 +265,7 @@ fun SignUpScreen(
                         isGoogleLoading = true
                         error = null
                         scope.launch {
-                            val result = AuthManager.signInWithGoogle(context)
+                            val result = AuthManager.signInWithGoogle(context, isSignUp = true)
                             isGoogleLoading = false
                             when (result) {
                                 is AuthResult.Success -> onGoogleSuccess()
