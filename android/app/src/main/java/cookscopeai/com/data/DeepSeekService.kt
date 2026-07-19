@@ -3,37 +3,22 @@ package cookscopeai.com.data
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.request.headers
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.client.statement.HttpResponse
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
-import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.put
 
 /**
- * Shared DeepSeek API client via the Rork AI Gateway proxy.
- * Uses deepseek/deepseek-v4-flash model — a 284B MoE with 13B activated parameters,
- * optimized for fast coding and agents with 1M-token context.
+ * AI completion service for CookScope.
  *
- * Routed through the Rork toolkit proxy which handles authentication and billing.
- * Supported parameters: max_tokens, temperature, stop, tools, tool_choice, reasoning, include_reasoning
+ * All requests are proxied through the CookScope backend (Supabase Edge
+ * Functions) so the Rork toolkit secret never ships in the APK. The backend
+ * validates the user's Supabase session and forwards the request to the
+ * Rork AI Gateway.
  *
- * This client is model-agnostic: callers pass a model ID (e.g. deepseek/deepseek-v4-flash
- * for free-tier chat, openai/gpt-4o for premium chat, or the default for recipe generation).
+ * This client is model-agnostic: callers pass a model ID (e.g.
+ * `deepseek/deepseek-v4-flash` for free-tier chat, `openai/gpt-4o` for
+ * premium chat, or the default for recipe generation).
  */
 class DeepSeekService {
 
@@ -43,8 +28,7 @@ class DeepSeekService {
         }
     }
 
-    private val toolkitUrl = "https://toolkit.rork.com"
-    private val secretKey = "rork_sk_p6wfm99bye40dybmfr6puviqlgt8uqcp"
+    private val backend = CookScopeBackendService()
 
     @Serializable
     data class Message(
@@ -58,13 +42,14 @@ class DeepSeekService {
     )
 
     /**
-     * Sends a chat completion request to DeepSeek and returns both the content and reasoning.
+     * Sends a chat completion request and returns both the content and reasoning.
      *
      * @param messages Conversation messages (system + user/assistant turns)
      * @param temperature Sampling temperature (default 0.7)
      * @param maxTokens Maximum tokens to generate
      * @param thinking Enable thinking/reasoning mode for complex tasks
      * @param reasoningEffort Reasoning depth: "low", "medium", or "high"
+     * @param model Model ID to use on the backend
      */
     suspend fun complete(
         messages: List<Message>,
@@ -74,57 +59,14 @@ class DeepSeekService {
         reasoningEffort: String = "medium",
         model: String = MODEL_DEFAULT,
     ): Result<CompletionResult> {
-        return try {
-            val messagesArray = buildJsonArray {
-                messages.forEach { msg ->
-                    add(buildJsonObject {
-                        put("role", msg.role)
-                        put("content", msg.content)
-                    })
-                }
-            }
-
-            val requestBody = buildJsonObject {
-                put("model", model)
-                put("messages", messagesArray)
-                put("temperature", temperature)
-                put("top_p", 0.95)
-                put("max_tokens", maxTokens)
-                put("stream", false)
-                if (thinking) {
-                    put("reasoning", buildJsonObject {
-                        put("effort", reasoningEffort)
-                        put("include", true)
-                    })
-                }
-            }
-
-            val response: HttpResponse = client.post("$toolkitUrl/v2/vercel/v1/chat/completions") {
-                headers {
-                    append(HttpHeaders.Authorization, "Bearer $secretKey")
-                    append(HttpHeaders.ContentType, "application/json")
-                }
-                contentType(ContentType.Application.Json)
-                setBody(requestBody.toString())
-            }
-
-            if (response.status.value !in 200..299) {
-                return Result.failure(Exception("AI service error: ${response.status.value}"))
-            }
-
-            val responseText = response.bodyAsText()
-            val json = Json.parseToJsonElement(responseText).jsonObject
-            val message = json["choices"]?.jsonArray?.firstOrNull()
-                ?.jsonObject?.get("message")?.jsonObject
-
-            val content = message?.get("content")?.jsonPrimitive?.contentOrNull ?: ""
-            val reasoning = message?.get("reasoning")?.jsonPrimitive?.contentOrNull
-                ?: message?.get("reasoning_content")?.jsonPrimitive?.contentOrNull
-
-            Result.success(CompletionResult(content = content, reasoning = reasoning))
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+        return backend.aiChat(
+            messages = messages.map { CookScopeBackendService.Message(it.role, it.content) },
+            model = model,
+            temperature = temperature,
+            maxTokens = maxTokens,
+            thinking = thinking,
+            reasoningEffort = reasoningEffort,
+        ).map { CompletionResult(content = it.content, reasoning = it.reasoning) }
     }
 
     /**
@@ -142,45 +84,13 @@ class DeepSeekService {
         reasoningEffort: String = "medium",
         model: String = MODEL_DEFAULT,
     ): Result<String> {
-        return try {
-            val requestBody = buildJsonObject {
-                put("model", model)
-                put("messages", messagesJson)
-                put("temperature", temperature)
-                put("top_p", 0.95)
-                put("max_tokens", maxTokens)
-                put("stream", false)
-                if (thinking) {
-                    put("reasoning", buildJsonObject {
-                        put("effort", reasoningEffort)
-                        put("include", true)
-                    })
-                }
-            }
-
-            val response: HttpResponse = client.post("$toolkitUrl/v2/vercel/v1/chat/completions") {
-                headers {
-                    append(HttpHeaders.Authorization, "Bearer $secretKey")
-                    append(HttpHeaders.ContentType, "application/json")
-                }
-                contentType(ContentType.Application.Json)
-                setBody(requestBody.toString())
-            }
-
-            if (response.status.value !in 200..299) {
-                return Result.failure(Exception("AI service error: ${response.status.value}"))
-            }
-
-            val responseText = response.bodyAsText()
-            val json = Json.parseToJsonElement(responseText).jsonObject
-            val content = json["choices"]?.jsonArray?.firstOrNull()
-                ?.jsonObject?.get("message")?.jsonObject?.get("content")
-                ?.jsonPrimitive?.contentOrNull ?: ""
-
-            Result.success(content)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+        // thinking/reasoningEffort are ignored by ai-scan (vision) — keep the
+        // signature for source compatibility.
+        return backend.aiScan(
+            messagesJson = messagesJson,
+            temperature = temperature,
+            maxTokens = maxTokens,
+        )
     }
 
     /**
@@ -200,6 +110,7 @@ class DeepSeekService {
 
     fun close() {
         client.close()
+        backend.close()
     }
 
     companion object {

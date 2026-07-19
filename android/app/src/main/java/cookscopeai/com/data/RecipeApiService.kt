@@ -5,31 +5,19 @@ import cookscopeai.com.data.model.Difficulty
 import cookscopeai.com.data.model.Ingredient
 import cookscopeai.com.data.model.IngredientCategory
 import cookscopeai.com.data.model.Recipe
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.android.Android
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.request.get
-import io.ktor.client.request.header
-import io.ktor.client.statement.HttpResponse
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.HttpHeaders
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 
 /**
- * Service for fetching recipes from recipeapi.io — a REST API with 50,000+ recipes.
- * Uses Bearer token authentication with the development API key.
+ * Service for fetching recipes via the CookScope backend.
+ *
+ * All requests are proxied through Supabase Edge Functions
+ * (`recipe-search`, `recipe-detail`, `recipe-random`) so the recipeapi.io
+ * API key never ships in the APK. The backend validates the user's Supabase
+ * session and forwards the call to recipeapi.io with a server-side secret.
  */
 class RecipeApiService {
 
-    private val client = HttpClient(Android) {
-        install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys = true })
-        }
-    }
-
-    private val baseUrl = "https://recipeapi.io/api/v1"
-    private val apiKey = "sk_live_Txu9GNOnm5fqSb3CTITHbT55FbKLBVQeb08SNOWe7589f535"
+    private val backend = CookScopeBackendService()
     private val jsonParser = Json { ignoreUnknownKeys = true }
 
     /**
@@ -41,14 +29,11 @@ class RecipeApiService {
         perPage: Int = 20,
     ): Result<List<Recipe>> {
         return try {
-            val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
-            val url = "$baseUrl/recipes?search=$encodedQuery&lang=en&page=$page&per_page=$perPage"
-            val response = makeGetRequest(url)
-            if (!response.isSuccessful()) {
-                return Result.failure(Exception("Search failed: ${response.statusCode()}"))
+            val result = backend.recipeSearch(query, page, perPage)
+            if (result.isFailure) {
+                return Result.failure(result.exceptionOrNull() ?: Exception("Search failed"))
             }
-            val body = response.bodyText()
-            val listResponse = jsonParser.decodeFromString<RecipeListResponse>(body)
+            val listResponse = jsonParser.decodeFromString<RecipeListResponse>(result.getOrThrow())
             val recipes = listResponse.data.map { mapApiRecipeToRecipe(it) }
             Result.success(recipes)
         } catch (e: Exception) {
@@ -65,16 +50,11 @@ class RecipeApiService {
         perPage: Int = 20,
     ): Result<List<Recipe>> {
         return try {
-            val ingredientsParam = ingredients.joinToString(",") {
-                java.net.URLEncoder.encode(it.trim(), "UTF-8")
+            val result = backend.recipeSearchByIngredients(ingredients, page, perPage)
+            if (result.isFailure) {
+                return Result.failure(result.exceptionOrNull() ?: Exception("Recipe search failed"))
             }
-            val url = "$baseUrl/recipes?ingredients=$ingredientsParam&lang=en&page=$page&per_page=$perPage"
-            val response = makeGetRequest(url)
-            if (!response.isSuccessful()) {
-                return Result.failure(Exception("Recipe search failed: ${response.statusCode()}"))
-            }
-            val body = response.bodyText()
-            val listResponse = jsonParser.decodeFromString<RecipeListResponse>(body)
+            val listResponse = jsonParser.decodeFromString<RecipeListResponse>(result.getOrThrow())
             val recipes = listResponse.data.map { mapApiRecipeToRecipe(it) }
             Result.success(recipes)
         } catch (e: Exception) {
@@ -87,13 +67,11 @@ class RecipeApiService {
      */
     suspend fun getRecipe(id: String): Result<Recipe> {
         return try {
-            val url = "$baseUrl/recipes/${java.net.URLEncoder.encode(id, "UTF-8")}?lang=en"
-            val response = makeGetRequest(url)
-            if (!response.isSuccessful()) {
-                return Result.failure(Exception("Recipe fetch failed: ${response.statusCode()}"))
+            val result = backend.recipeDetail(id)
+            if (result.isFailure) {
+                return Result.failure(result.exceptionOrNull() ?: Exception("Recipe fetch failed"))
             }
-            val body = response.bodyText()
-            val detailResponse = jsonParser.decodeFromString<RecipeDetailResponse>(body)
+            val detailResponse = jsonParser.decodeFromString<RecipeDetailResponse>(result.getOrThrow())
             val detail = detailResponse.data
                 ?: return Result.failure(Exception("Recipe not found"))
             Result.success(mapApiRecipeToRecipe(detail))
@@ -104,23 +82,24 @@ class RecipeApiService {
 
     /**
      * Get random recipes for discovery on the Home screen.
-     * The API returns one random recipe per call.
+     * The backend fans out to recipeapi.io's /recipes/random endpoint.
      */
     suspend fun getRandomRecipes(count: Int = 10): Result<List<Recipe>> {
         return try {
-            val recipes = mutableListOf<Recipe>()
             val fetchCount = minOf(count, 10)
-            for (i in 0 until fetchCount) {
-                val url = "$baseUrl/recipes/random?lang=en"
-                val response = makeGetRequest(url)
-                if (response.isSuccessful()) {
-                    val body = response.bodyText()
-                    val detailResponse = jsonParser.decodeFromString<RecipeDetailResponse>(body)
-                    detailResponse.data?.let { detail ->
-                        recipes.add(mapApiRecipeToRecipe(detail))
-                    }
-                }
+            val result = backend.recipeRandom(fetchCount)
+            if (result.isFailure) {
+                return Result.failure(result.exceptionOrNull() ?: Exception("No recipes returned"))
             }
+            val body = result.getOrThrow()
+            // The backend returns `{ data: [ApiRecipe, ...] }`.
+            val parsed = runCatching {
+                jsonParser.decodeFromString<RecipeListResponse>(body)
+            }.getOrNull()
+                ?: runCatching {
+                    jsonParser.decodeFromString<RecipeDetailResponse>(body)
+                }.getOrNull()?.let { RecipeListResponse(data = listOfNotNull(it.data)) }
+            val recipes = (parsed?.data ?: emptyList()).map { mapApiRecipeToRecipe(it) }
             if (recipes.isEmpty()) {
                 Result.failure(Exception("No recipes returned"))
             } else {
@@ -132,36 +111,18 @@ class RecipeApiService {
     }
 
     /**
-     * Fetch available ingredients from the API (for autocomplete suggestions).
+     * Fetch available ingredients (for autocomplete suggestions).
+     *
+     * The backend does not currently expose an ingredients listing endpoint —
+     * returning an empty list keeps callers working without embedding the
+     * recipeapi.io key client-side.
      */
     suspend fun getIngredients(page: Int = 1, perPage: Int = 50): Result<List<ApiIngredientInfo>> {
-        return try {
-            val url = "$baseUrl/ingredients?lang=en&page=$page&per_page=$perPage"
-            val response = makeGetRequest(url)
-            if (!response.isSuccessful()) {
-                return Result.failure(Exception("Ingredients fetch failed: ${response.statusCode()}"))
-            }
-            val body = response.bodyText()
-            val listResponse = jsonParser.decodeFromString<IngredientsListResponse>(body)
-            Result.success(listResponse.data)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    private suspend fun makeGetRequest(url: String): HttpResponseWrapper {
-        val response: HttpResponse = client.get(url) {
-            header(HttpHeaders.Authorization, "Bearer $apiKey")
-            header(HttpHeaders.Accept, "application/json")
-        }
-        return HttpResponseWrapper(
-            statusCode = response.status.value,
-            body = response.bodyAsText(),
-        )
+        return Result.success(emptyList())
     }
 
     /**
-     * Map an ApiRecipe from recipeapi.io to the app's Recipe model.
+     * Map an ApiRecipe from the backend payload to the app's Recipe model.
      * Both list and detail endpoints return the same full structure.
      */
     private fun mapApiRecipeToRecipe(api: ApiRecipe): Recipe {
@@ -261,15 +222,6 @@ class RecipeApiService {
     }
 
     fun close() {
-        client.close()
+        backend.close()
     }
-}
-
-private data class HttpResponseWrapper(
-    private val statusCode: Int,
-    private val body: String,
-) {
-    fun statusCode(): Int = statusCode
-    fun isSuccessful(): Boolean = statusCode in 200..299
-    fun bodyText(): String = body
 }

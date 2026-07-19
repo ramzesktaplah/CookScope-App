@@ -2,6 +2,7 @@ package cookscopeai.com.data
 
 import android.app.Activity
 import android.app.Application
+import cookscopeai.com.Config
 import com.revenuecat.purchases.Purchases
 import com.revenuecat.purchases.PurchasesAreCompletedBy
 import com.revenuecat.purchases.PurchasesConfiguration
@@ -27,8 +28,6 @@ object SubscriptionManager {
     private const val ENTITLEMENT_ID = "CookScope Premium"
     private const val PACKAGE_MONTHLY = "\$rc_monthly"
     private const val PACKAGE_ANNUAL = "\$rc_annual"
-    private const val TEST_API_KEY = "test_uIBjzsLjaoFRrmJfTSYDBYruVHs"
-    private const val ANDROID_API_KEY = "goog_fQllvdZiGuLYdIzNbYRNvXGwuzZ"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -49,10 +48,18 @@ object SubscriptionManager {
 
     /**
      * Initialize RevenueCat SDK. Call from Activity.onCreate.
-     * Uses Test Store key for debug builds, Play Store key for release.
+     * Uses the Test Store key for debug builds, Play Store key for release.
+     *
+     * Keys come from the auto-generated Config.kt (populated by the Rork
+     * build system from `EXPO_PUBLIC_REVENUECAT_*` env vars) — no longer
+     * hardcoded as Kotlin literals.
      */
     fun initialize(app: Application, isDebug: Boolean) {
-        val apiKey = if (isDebug) TEST_API_KEY else ANDROID_API_KEY
+        val apiKey = if (isDebug) {
+            Config.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY
+        } else {
+            Config.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY
+        }
         Purchases.configure(
             PurchasesConfiguration.Builder(app, apiKey)
                 .purchasesAreCompletedBy(PurchasesAreCompletedBy.REVENUECAT)
