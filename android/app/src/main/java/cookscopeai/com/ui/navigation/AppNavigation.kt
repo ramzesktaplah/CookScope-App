@@ -257,7 +257,9 @@ fun AppNavigation() {
                 )
             }
             composable("chat") {
-                ChatbotScreen()
+                ChatbotScreen(
+                    onUpgrade = { navController.navigate("paywall") },
+                )
             }
             composable("create") {
                 CreateRecipeScreen(

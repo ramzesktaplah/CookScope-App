@@ -3,6 +3,7 @@ package cookscopeai.com.data
 import android.content.Context
 import android.content.SharedPreferences
 import cookscopeai.com.data.SupabaseClient.ProfileDto
+import cookscopeai.com.data.SupabaseClient.SavedRecipeDto
 import cookscopeai.com.data.SupabaseClient.UserPreferenceDto
 import cookscopeai.com.data.model.ChefPost
 import cookscopeai.com.data.model.UserProfile
@@ -146,8 +147,16 @@ object UserManager {
                             try {
                                 loadRemoteProfile(uid)
                                 loadRemotePreferences(uid)
+                                loadRemoteSavedRecipes(uid)
                             } finally {
                                 _isProfileLoading.value = false
+                            }
+                            // Best-effort: restore chat history from the cloud.
+                            // Wrapped separately so a failure here doesn't block onboarding.
+                            try {
+                                ChatHistoryManager.loadRemoteConversations(uid)
+                            } catch (_: Exception) {
+                                // Keep local state on failure.
                             }
                         }
                     }
@@ -227,6 +236,27 @@ object UserManager {
             }
         } catch (_: Exception) {
             // Keep local defaults on error.
+        }
+    }
+
+    /**
+     * Load the user's saved-recipe ids from Supabase and merge into local
+     * state. Called after auth so bookmarks survive reinstall and re-login.
+     */
+    private suspend fun loadRemoteSavedRecipes(uid: String) {
+        try {
+            val dtos = SupabaseClient.client.postgrest["saved_recipes"]
+                .select(columns = Columns.ALL) {
+                    filter { eq("user_id", uid) }
+                }
+                .decodeList<SavedRecipeDto>()
+            if (dtos.isNotEmpty()) {
+                val ids = dtos.map { it.recipeId }.toSet()
+                _savedRecipeIds.value = ids
+                prefs.edit().putStringSet(KEY_SAVED_RECIPE_IDS, ids).apply()
+            }
+        } catch (_: Exception) {
+            // Keep local state on failure.
         }
     }
 
@@ -394,9 +424,42 @@ object UserManager {
 
     fun toggleSavedRecipe(recipeId: String) {
         val current = _savedRecipeIds.value.toMutableSet()
-        if (recipeId in current) current.remove(recipeId) else current.add(recipeId)
+        val isAdding = recipeId !in current
+        if (isAdding) current.add(recipeId) else current.remove(recipeId)
         _savedRecipeIds.value = current
         prefs.edit().putStringSet(KEY_SAVED_RECIPE_IDS, current).apply()
+        // Mirror to Supabase so the bookmark survives reinstall and re-login.
+        // Look up the full recipe to populate the denormalized columns.
+        val uid = _profile.value.id
+        if (uid != "local_user" && uid.isNotBlank()) {
+            scope.launch {
+                try {
+                    if (isAdding) {
+                        val recipe = cookscopeai.com.data.RecipeData.byId(recipeId)
+                        val dto = SavedRecipeDto(
+                            userId = uid,
+                            recipeId = recipeId,
+                            recipeTitle = recipe?.title ?: "Saved recipe",
+                            recipeImageUrl = recipe?.imageUrl ?: "",
+                            recipeCuisine = recipe?.cuisine ?: "",
+                            recipeDifficulty = recipe?.difficulty?.name ?: "EASY",
+                            recipeCookTimeMin = recipe?.cookTimeMin ?: 0,
+                            source = if (recipeId.startsWith("api_")) "api" else "seed",
+                        )
+                        SupabaseClient.client.postgrest["saved_recipes"].upsert(dto)
+                    } else {
+                        SupabaseClient.client.postgrest["saved_recipes"].delete {
+                            filter {
+                                eq("user_id", uid)
+                                eq("recipe_id", recipeId)
+                            }
+                        }
+                    }
+                } catch (_: Exception) {
+                    // Best-effort sync — local state stays correct.
+                }
+            }
+        }
     }
 
     fun isRecipeSaved(recipeId: String): Boolean = recipeId in _savedRecipeIds.value

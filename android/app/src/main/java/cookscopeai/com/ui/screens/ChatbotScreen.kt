@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -47,6 +48,7 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -111,7 +113,9 @@ private val allSuggestionPool = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatbotScreen() {
+fun ChatbotScreen(
+    onUpgrade: () -> Unit = {},
+) {
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(initialValue = androidx.compose.material3.DrawerValue.Closed)
 
@@ -120,10 +124,12 @@ fun ChatbotScreen() {
     val isPremium by SubscriptionManager.isPremium.collectAsState()
     val usedCount by ChatUsageManager.used.collectAsState()
     val remainingCount by ChatUsageManager.remaining.collectAsState()
+    val canStartNewChat = ChatHistoryManager.canStartNewConversation()
 
     val messages = remember { mutableStateListOf<ChatBubble>() }
     var isLoading by remember { mutableStateOf(false) }
     var rateLimitHit by remember { mutableStateOf(false) }
+    var showChatLimitDialog by remember { mutableStateOf(false) }
     val chatService = remember { ChatService() }
     val listState = rememberLazyListState()
 
@@ -245,6 +251,11 @@ fun ChatbotScreen() {
     }
 
     fun startNewChat() {
+        if (!ChatHistoryManager.canStartNewConversation()) {
+            showChatLimitDialog = true
+            scope.launch { drawerState.close() }
+            return
+        }
         messages.clear()
         ChatHistoryManager.startNewConversation()
         scope.launch { drawerState.close() }
@@ -269,6 +280,7 @@ fun ChatbotScreen() {
                 conversations = conversations,
                 activeId = activeId,
                 isPremium = isPremium,
+                canStartNewChat = canStartNewChat,
                 onNewChat = ::startNewChat,
                 onOpen = ::openConversation,
                 onDelete = ::deleteConversation,
@@ -298,6 +310,7 @@ fun ChatbotScreen() {
                     isPremium = isPremium,
                     usedCount = usedCount,
                     remainingCount = remainingCount,
+                    canStartNewChat = canStartNewChat,
                     onOpenHistory = { scope.launch { drawerState.open() } },
                     onNewChat = ::startNewChat,
                 )
@@ -307,7 +320,18 @@ fun ChatbotScreen() {
                     RateLimitBanner(
                         isPremium = isPremium,
                         remaining = remainingCount,
-                        onUpgrade = { /* could navigate to paywall */ },
+                        onUpgrade = onUpgrade,
+                    )
+                }
+
+                if (showChatLimitDialog) {
+                    ChatLimitDialog(
+                        isPremium = isPremium,
+                        onUpgrade = {
+                            showChatLimitDialog = false
+                            onUpgrade()
+                        },
+                        onDismiss = { showChatLimitDialog = false },
                     )
                 }
 
@@ -372,6 +396,7 @@ private fun ChatHeader(
     isPremium: Boolean,
     usedCount: Int,
     remainingCount: Int,
+    canStartNewChat: Boolean,
     onOpenHistory: () -> Unit,
     onNewChat: () -> Unit,
 ) {
@@ -442,15 +467,57 @@ private fun ChatHeader(
             }
         }
 
-        // New chat button — upper right
+        // New chat button — upper right (dimmed at limit, still tappable so the
+        // upgrade dialog can surface).
         IconButton(onClick = onNewChat) {
             Icon(
                 Icons.Default.Edit,
                 contentDescription = "New chat",
-                tint = GoldPrimary,
+                tint = if (canStartNewChat) GoldPrimary else GoldPrimary.copy(alpha = 0.4f),
             )
         }
     }
+}
+
+@Composable
+private fun ChatLimitDialog(
+    isPremium: Boolean,
+    onUpgrade: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "Chat history full",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+        },
+        text = {
+            Text(
+                if (isPremium) {
+                    "You've reached the 30-chat limit on Premium. Delete an old chat to start a new one."
+                } else {
+                    "You've reached the 10-chat limit on the Free plan. Upgrade to Premium for 30 chats and 100 questions per month."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        confirmButton = {
+            if (!isPremium) {
+                TextButton(onClick = onUpgrade) {
+                    Text("Upgrade", color = GoldPrimary, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
 }
 
 @Composable
@@ -537,6 +604,7 @@ private fun ChatHistoryDrawer(
     conversations: List<ChatHistoryManager.Conversation>,
     activeId: String?,
     isPremium: Boolean,
+    canStartNewChat: Boolean,
     onNewChat: () -> Unit,
     onOpen: (String) -> Unit,
     onDelete: (String) -> Unit,
@@ -577,18 +645,27 @@ private fun ChatHistoryDrawer(
             }
         }
 
-        // New chat button
+        // New chat button (dimmed at the plan limit, still tappable so the
+        // upgrade dialog can surface from either entry point).
         NavigationDrawerItem(
             label = {
                 Text(
                     "New Chat",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
+                    color = if (canStartNewChat) MaterialTheme.colorScheme.onSurface
+                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                 )
             },
             selected = false,
             onClick = onNewChat,
-            icon = { Icon(Icons.Default.Edit, contentDescription = null, tint = GoldPrimary) },
+            icon = {
+                Icon(
+                    Icons.Default.Edit,
+                    contentDescription = null,
+                    tint = if (canStartNewChat) GoldPrimary else GoldPrimary.copy(alpha = 0.4f),
+                )
+            },
             colors = NavigationDrawerItemDefaults.colors(
                 unselectedContainerColor = GoldPrimary.copy(alpha = 0.08f),
             ),
