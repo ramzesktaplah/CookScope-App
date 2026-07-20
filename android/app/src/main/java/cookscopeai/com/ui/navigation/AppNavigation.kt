@@ -66,6 +66,7 @@ fun AppNavigation() {
     val sessionStatus by AuthManager.sessionStatus.collectAsState()
     val authEntryPoint by AuthManager.authEntryPoint.collectAsState()
     val isOnboardingComplete by UserManager.isOnboardingComplete.collectAsState()
+    val hasRemoteProfile by UserManager.hasRemoteProfile.collectAsState()
     val isProfileLoading by UserManager.isProfileLoading.collectAsState()
     val scope = rememberCoroutineScope()
 
@@ -80,6 +81,7 @@ fun AppNavigation() {
         is SessionStatus.Authenticated -> postAuthDestination(
             entryPoint = authEntryPoint,
             isOnboardingComplete = isOnboardingComplete,
+            hasRemoteProfile = hasRemoteProfile,
         )
         else -> "splash" // RefreshFailure or unknown → show splash briefly
     }
@@ -100,6 +102,7 @@ fun AppNavigation() {
                 val target = postAuthDestination(
                     entryPoint = authEntryPoint,
                     isOnboardingComplete = isOnboardingComplete,
+                    hasRemoteProfile = hasRemoteProfile,
                 )
                 navController.navigate(target) {
                     popUpTo("welcome") { inclusive = true }
@@ -326,16 +329,20 @@ fun AppNavigation() {
  *
  *  - LOGIN   → returning user → straight to Home (never re-show
  *              preferences, even if the remote flag is somehow false)
- *  - SIGNUP  → new user → walk through onboarding based on the remote flag:
- *              onboarding not done → preferences; otherwise → home
- *              (already onboarded somehow)
- *  - UNKNOWN → session restored on app launch → decide from remote flag:
- *              onboarding not done → preferences; otherwise → home.
+ *  - SIGNUP  → new user → walk through onboarding only if no remote profile
+ *              exists and onboarding hasn't been completed. Existing users
+ *              who sign in via the signup screen (e.g., Google) skip onboarding.
+ *  - UNKNOWN → session restored on app launch → go Home if the user has a
+ *              remote profile or has completed onboarding; otherwise show
+ *              onboarding preferences so a new user can finish setup.
  */
 private fun postAuthDestination(
     entryPoint: AuthEntryPoint,
     isOnboardingComplete: Boolean,
+    hasRemoteProfile: Boolean,
 ): String = when (entryPoint) {
     AuthEntryPoint.LOGIN -> "home"
-    AuthEntryPoint.SIGNUP, AuthEntryPoint.UNKNOWN -> if (!isOnboardingComplete) "onboarding_preferences" else "home"
+    AuthEntryPoint.SIGNUP, AuthEntryPoint.UNKNOWN -> {
+        if (isOnboardingComplete || hasRemoteProfile) "home" else "onboarding_preferences"
+    }
 }
