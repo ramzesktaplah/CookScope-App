@@ -63,17 +63,7 @@ fun WelcomeScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top,
         ) {
-            Spacer(Modifier.height(80.dp))
-
-            // Brand mark at top center
-            Image(
-                painter = painterResource(R.drawable.ic_brand_logo),
-                contentDescription = "CookScope",
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.size(48.dp),
-            )
-
-            Spacer(Modifier.height(48.dp))
+            Spacer(Modifier.height(96.dp))
 
             // Hero image — large centered logo
             Image(
