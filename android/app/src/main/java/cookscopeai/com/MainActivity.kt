@@ -27,7 +27,6 @@ import cookscopeai.com.ui.theme.AppTheme
 import io.github.jan.supabase.auth.handleDeeplinks
 import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.combine
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -55,6 +54,14 @@ class MainActivity : ComponentActivity() {
             AppTheme {
                 val sessionStatus by AuthManager.sessionStatus.collectAsState()
                 val isProfileLoading by UserManager.isProfileLoading.collectAsState()
+
+                // Determine whether the app is currently restoring an authenticated
+                // session. The splash screen is only useful for returning signed-in
+                // users; otherwise, show the onboarding flow immediately.
+                val isRestoringSession = remember(sessionStatus) {
+                    sessionStatus == SessionStatus.Initializing ||
+                        sessionStatus is SessionStatus.Authenticated
+                }
                 val isReady = remember(sessionStatus, isProfileLoading) {
                     sessionStatus != SessionStatus.Initializing && !isProfileLoading
                 }
@@ -62,20 +69,22 @@ class MainActivity : ComponentActivity() {
                 var minimumMet by remember { mutableStateOf(false) }
                 var maximumMet by remember { mutableStateOf(false) }
 
-                // Minimum splash duration: 5 seconds
-                LaunchedEffect(Unit) {
-                    delay(5000)
-                    minimumMet = true
+                // Start the splash timers only when a session is being restored.
+                // For signed-out / new users we never enter the splash and go
+                // straight to the Welcome screen.
+                if (isRestoringSession) {
+                    LaunchedEffect(Unit) {
+                        delay(5000)
+                        minimumMet = true
+                    }
+                    LaunchedEffect(Unit) {
+                        delay(8000)
+                        maximumMet = true
+                    }
                 }
 
-                // Maximum splash duration: 8 seconds
-                LaunchedEffect(Unit) {
-                    delay(8000)
-                    maximumMet = true
-                }
-
-                LaunchedEffect(isReady, minimumMet, maximumMet) {
-                    showSplash = !(isReady && minimumMet) && !maximumMet
+                LaunchedEffect(isRestoringSession, isReady, minimumMet, maximumMet) {
+                    showSplash = isRestoringSession && !(isReady && minimumMet) && !maximumMet
                 }
 
                 AnimatedVisibility(
