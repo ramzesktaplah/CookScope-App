@@ -26,8 +26,8 @@ import cookscopeai.com.ui.screens.CookingGuideScreen
 import cookscopeai.com.ui.screens.CreateRecipeScreen
 import cookscopeai.com.ui.screens.DishScanScreen
 import cookscopeai.com.ui.screens.EditProfileScreen
-import cookscopeai.com.ui.screens.ExploreScreen
 import cookscopeai.com.ui.screens.HomeScreen
+import cookscopeai.com.ui.screens.IngredientScanScreen
 import cookscopeai.com.ui.screens.LoginScreen
 import cookscopeai.com.ui.screens.OnboardingPreferencesScreen
 import cookscopeai.com.ui.screens.PaywallScreen
@@ -75,7 +75,7 @@ fun AppNavigation() {
     val isProfileLoading by UserManager.isProfileLoading.collectAsState()
     val scope = rememberCoroutineScope()
 
-    val mainRoutes = listOf("home", "explore", "chat", "create", "profile")
+    val mainRoutes = listOf("home", "scan", "chat", "create", "profile")
     val showBottomBar = currentRoute in mainRoutes
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -247,13 +247,15 @@ fun AppNavigation() {
             composable("home") {
                 HomeScreen(
                     onRecipeClick = { id -> navController.navigate("recipe/$id") },
-                    onExploreClick = { navController.navigate("explore") },
-                    onScanClick = { navController.navigate("scan") },
+                    onExploreClick = { navController.navigate("scan") },
+                    onScanClick = { navController.navigate("scan_dish") },
                 )
             }
-            composable("explore") {
-                ExploreScreen(
-                    onRecipeClick = { id -> navController.navigate("recipe/$id") }
+            composable("scan") {
+                IngredientScanScreen(
+                    onBack = { navController.popBackStack() },
+                    onRecipeClick = { id -> navController.navigate("recipe/$id") },
+                    onUpgrade = { navController.navigate("paywall") },
                 )
             }
             composable("chat") {
@@ -290,7 +292,7 @@ fun AppNavigation() {
                     onComplete = { navController.popBackStack("home", false) },
                 )
             }
-            composable("scan") {
+            composable("scan_dish") {
                 DishScanScreen(
                     onBack = { navController.popBackStack() },
                     onUpgrade = { navController.navigate("paywall") },

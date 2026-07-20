@@ -911,4 +911,32 @@ object RecipeData {
                 it.ingredients.any { ing -> ing.name.lowercase().contains(q) }
         }
     }
+
+    /**
+     * Returns recipes ranked by how many of [ingredients] appear in each
+     * recipe's ingredient list (case-insensitive partial match). Recipes with
+     * no matches are excluded. Works against both seed recipes and the
+     * recipeapi.io cache.
+     */
+    fun findByIngredients(ingredients: List<String>, limit: Int = 6): List<Recipe> {
+        if (ingredients.isEmpty()) return emptyList()
+        val normalized = ingredients
+            .map { it.lowercase().trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+        if (normalized.isEmpty()) return emptyList()
+        return all.mapNotNull { recipe ->
+            var score = 0
+            recipe.ingredients.forEach { ing ->
+                val name = ing.name.lowercase()
+                if (normalized.any { det -> name.contains(det) || det.contains(name) }) {
+                    score += 1
+                }
+            }
+            if (score == 0) null else recipe to score
+        }
+            .sortedByDescending { it.second }
+            .take(limit)
+            .map { it.first }
+    }
 }
