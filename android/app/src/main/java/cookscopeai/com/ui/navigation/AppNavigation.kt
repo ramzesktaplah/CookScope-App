@@ -20,19 +20,16 @@ import androidx.navigation.compose.rememberNavController
 import cookscopeai.com.data.AuthEntryPoint
 import cookscopeai.com.data.AuthManager
 import cookscopeai.com.data.UserManager
-import cookscopeai.com.ui.screens.AccountTypeSelectionScreen
 import cookscopeai.com.ui.screens.ChatbotScreen
 import cookscopeai.com.ui.screens.CookingGuideScreen
 import cookscopeai.com.ui.screens.CreateRecipeScreen
 import cookscopeai.com.ui.screens.DishScanScreen
-import cookscopeai.com.ui.screens.EditProfileScreen
 import cookscopeai.com.ui.screens.HomeScreen
 import cookscopeai.com.ui.screens.IngredientScanScreen
 import cookscopeai.com.ui.screens.LoginScreen
 import cookscopeai.com.ui.screens.OnboardingPreferencesScreen
 import cookscopeai.com.ui.screens.PaywallScreen
 import cookscopeai.com.ui.screens.PreferencesScreen
-import cookscopeai.com.ui.screens.ProfileScreen
 import cookscopeai.com.ui.screens.RecipeDetailScreen
 import cookscopeai.com.ui.screens.SavedRecipesScreen
 import cookscopeai.com.ui.screens.SettingsScreen
@@ -51,17 +48,15 @@ import kotlinx.coroutines.launch
  *
  *  - Initializing      → splash spinner
  *  - NotAuthenticated  → welcome → signup/login → …
- *  - Authenticated     → main app (Home, Explore, Chat, Create, Profile)
+ *  - Authenticated     → main app (Home, Scan, Chat, Create, Saved)
  *
  * Post-auth routing depends on how the session was established:
- *  - SIGNUP  (new user via the sign-up screen)   → full onboarding:
- *      account type → preferences → paywall → home
+ *  - SIGNUP  (new user via the sign-up screen)   → onboarding:
+ *      preferences → paywall → home
  *  - LOGIN   (returning user via the sign-in screen) → straight to Home
- *      (account type and preferences are never re-shown — the role is
- *      already locked and onboarding already complete remotely)
- *  - UNKNOWN (session restored on app launch) → decide from remote flags:
- *      role not locked → account type; onboarding not done → preferences;
- *      otherwise → home.
+ *      (preferences are never re-shown — onboarding is already complete remotely)
+ *  - UNKNOWN (session restored on app launch) → decide from remote flag:
+ *      onboarding not done → preferences; otherwise → home.
  */
 @Composable
 fun AppNavigation() {
@@ -71,11 +66,10 @@ fun AppNavigation() {
     val sessionStatus by AuthManager.sessionStatus.collectAsState()
     val authEntryPoint by AuthManager.authEntryPoint.collectAsState()
     val isOnboardingComplete by UserManager.isOnboardingComplete.collectAsState()
-    val isRoleLocked by UserManager.isRoleLocked.collectAsState()
     val isProfileLoading by UserManager.isProfileLoading.collectAsState()
     val scope = rememberCoroutineScope()
 
-    val mainRoutes = listOf("home", "scan", "chat", "create", "profile")
+    val mainRoutes = listOf("home", "scan", "chat", "create", "saved")
     val showBottomBar = currentRoute in mainRoutes
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -85,7 +79,6 @@ fun AppNavigation() {
         is SessionStatus.NotAuthenticated -> "welcome"
         is SessionStatus.Authenticated -> postAuthDestination(
             entryPoint = authEntryPoint,
-            isRoleLocked = isRoleLocked,
             isOnboardingComplete = isOnboardingComplete,
         )
         else -> "splash" // RefreshFailure or unknown → show splash briefly
@@ -106,7 +99,6 @@ fun AppNavigation() {
             if (route in listOf("welcome", "signup", "verify", "login")) {
                 val target = postAuthDestination(
                     entryPoint = authEntryPoint,
-                    isRoleLocked = isRoleLocked,
                     isOnboardingComplete = isOnboardingComplete,
                 )
                 navController.navigate(target) {
@@ -214,11 +206,6 @@ fun AppNavigation() {
                     onSignUp = { navController.navigate("signup") },
                 )
             }
-            composable("account_type") {
-                AccountTypeSelectionScreen(
-                    onContinue = { navController.navigate("onboarding_preferences") },
-                )
-            }
             composable("onboarding_preferences") {
                 OnboardingPreferencesScreen(
                     onContinue = { navController.navigate("paywall_onboarding") },
@@ -268,12 +255,11 @@ fun AppNavigation() {
                     onRecipeGenerated = { id -> navController.navigate("recipe/$id") }
                 )
             }
-            composable("profile") {
-                ProfileScreen(
-                    onUpgradeClick = { navController.navigate("paywall") },
-                    onEditProfile = { navController.navigate("edit_profile") },
-                    onSettingsClick = { navController.navigate("settings") },
-                    onSavedRecipes = { navController.navigate("saved_recipes") },
+            composable("saved") {
+                SavedRecipesScreen(
+                    onBack = null,
+                    onRecipeClick = { id -> navController.navigate("recipe/$id") },
+                    onSettings = { navController.navigate("settings") },
                 )
             }
             composable("recipe/{recipeId}") { backStackEntry ->
@@ -303,11 +289,6 @@ fun AppNavigation() {
                     onBack = { navController.popBackStack() },
                     onPurchased = { navController.popBackStack() },
                     onSkip = { navController.popBackStack() },
-                )
-            }
-            composable("edit_profile") {
-                EditProfileScreen(
-                    onBack = { navController.popBackStack() },
                 )
             }
             composable("settings") {
@@ -343,24 +324,18 @@ fun AppNavigation() {
  * Compute the destination route after an authenticated session is
  * established and the remote profile has finished loading.
  *
- *  - LOGIN   → returning user → straight to Home (never re-show account
- *              type or preferences, even if remote flags are somehow false)
- *  - SIGNUP  → new user → walk through onboarding based on remote flags:
- *              role not locked → account type; onboarding not done →
- *              preferences; otherwise → home (already onboarded somehow)
- *  - UNKNOWN → session restored on app launch → decide from remote flags:
- *              role not locked → account type; onboarding not done →
- *              preferences; otherwise → home.
+ *  - LOGIN   → returning user → straight to Home (never re-show
+ *              preferences, even if the remote flag is somehow false)
+ *  - SIGNUP  → new user → walk through onboarding based on the remote flag:
+ *              onboarding not done → preferences; otherwise → home
+ *              (already onboarded somehow)
+ *  - UNKNOWN → session restored on app launch → decide from remote flag:
+ *              onboarding not done → preferences; otherwise → home.
  */
 private fun postAuthDestination(
     entryPoint: AuthEntryPoint,
-    isRoleLocked: Boolean,
     isOnboardingComplete: Boolean,
 ): String = when (entryPoint) {
     AuthEntryPoint.LOGIN -> "home"
-    AuthEntryPoint.SIGNUP, AuthEntryPoint.UNKNOWN -> when {
-        !isRoleLocked -> "account_type"
-        !isOnboardingComplete -> "onboarding_preferences"
-        else -> "home"
-    }
+    AuthEntryPoint.SIGNUP, AuthEntryPoint.UNKNOWN -> if (!isOnboardingComplete) "onboarding_preferences" else "home"
 }

@@ -5,9 +5,7 @@ import android.content.SharedPreferences
 import cookscopeai.com.data.SupabaseClient.ProfileDto
 import cookscopeai.com.data.SupabaseClient.SavedRecipeDto
 import cookscopeai.com.data.SupabaseClient.UserPreferenceDto
-import cookscopeai.com.data.model.ChefPost
 import cookscopeai.com.data.model.UserProfile
-import cookscopeai.com.data.model.UserRole
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.postgrest.postgrest
@@ -25,14 +23,11 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /**
- * Manages user profile, role lock, onboarding state, and preferences.
+ * Manages user profile, onboarding state, and preferences.
  *
  * Integrates with Supabase Auth: when a session becomes authenticated,
  * the profile + preferences are loaded from the `profiles` and
  * `user_preferences` tables. On sign-out, local state is reset.
- *
- * Role lock: once [setRoleLocked] is called (after onboarding role
- * selection), the role cannot be changed via [updateProfile].
  *
  * Onboarding state is persisted both locally (SharedPreferences) and
  * remotely (profiles.onboarding_complete) so returning users skip
@@ -55,16 +50,9 @@ object UserManager {
             username = "homechef",
             displayName = "Home Chef",
             bio = "Cooking with passion, one dish at a time",
-            role = UserRole.LEARNER,
-            starsReceived = 0,
-            starsGiven = 0,
         )
     )
     val profile: StateFlow<UserProfile> = _profile.asStateFlow()
-
-    /** Whether the user's role can still be changed. Locked after onboarding. */
-    private val _isRoleLocked = MutableStateFlow(false)
-    val isRoleLocked: StateFlow<Boolean> = _isRoleLocked.asStateFlow()
 
     /** Whether onboarding (welcome → … → paywall) has been completed. */
     private val _isOnboardingComplete = MutableStateFlow(false)
@@ -186,18 +174,13 @@ object UserManager {
 
             if (dto != null) {
                 _hasRemoteProfile.value = true
-                _isRoleLocked.value = dto.roleLocked
                 _isOnboardingComplete.value = dto.onboardingComplete
-                val role = parseRole(dto.role)
                 _profile.value = _profile.value.copy(
                     id = uid,
                     username = dto.username.ifBlank { _profile.value.username },
                     displayName = dto.displayName.ifBlank { _profile.value.displayName },
                     bio = dto.bio.ifBlank { _profile.value.bio },
                     avatarUrl = dto.avatarUrl.ifBlank { _profile.value.avatarUrl },
-                    role = role,
-                    starsReceived = dto.starsCount,
-                    starsGiven = dto.starsGiven,
                 )
                 // Persist locally so it survives offline relaunch.
                 saveProfile()
@@ -262,7 +245,6 @@ object UserManager {
 
     private fun resetToLocalDefaults() {
         _hasRemoteProfile.value = false
-        _isRoleLocked.value = false
         _isOnboardingComplete.value = false
         _isProfileLoading.value = false
         _preferences.value = UserPreferences()
@@ -270,7 +252,6 @@ object UserManager {
             username = "homechef",
             displayName = "Home Chef",
             bio = "Cooking with passion, one dish at a time",
-            role = UserRole.LEARNER,
         )
         prefs.edit().clear().apply()
     }
@@ -282,8 +263,8 @@ object UserManager {
     }
 
     /**
-     * Update local profile. Role change is ignored if locked.
-     * Does NOT write to Supabase — call [pushProfileToRemote] for that.
+     * Update local profile. Does NOT write to Supabase — call
+     * [pushProfileToRemote] for that.
      */
     fun updateProfile(
         username: String? = null,
@@ -291,16 +272,13 @@ object UserManager {
         bio: String? = null,
         profilePhotoUri: String? = null,
         avatarUrl: String? = null,
-        role: UserRole? = null,
     ) {
-        val effectiveRole = if (role != null && !_isRoleLocked.value) role else _profile.value.role
         _profile.value = _profile.value.copy(
             username = username ?: _profile.value.username,
             displayName = displayName ?: _profile.value.displayName,
             bio = bio ?: _profile.value.bio,
             profilePhotoUri = profilePhotoUri ?: _profile.value.profilePhotoUri,
             avatarUrl = avatarUrl ?: _profile.value.avatarUrl,
-            role = effectiveRole,
         )
         saveProfile()
     }
@@ -321,10 +299,6 @@ object UserManager {
                 displayName = _profile.value.displayName,
                 bio = _profile.value.bio,
                 avatarUrl = _profile.value.avatarUrl ?: "",
-                role = roleToString(_profile.value.role),
-                roleLocked = _isRoleLocked.value,
-                starsCount = _profile.value.starsReceived,
-                starsGiven = _profile.value.starsGiven,
                 onboardingComplete = _isOnboardingComplete.value,
             )
             SupabaseClient.client.postgrest["profiles"].upsert(dto)
@@ -356,30 +330,6 @@ object UserManager {
     }
 
     /**
-     * Lock the role after onboarding selection. Writes the role and locked
-     * flag locally and to the remote profile row, then returns whether the
-     * remote write succeeded. The caller should not navigate forward until
-     * this returns true, so the account type screen never reappears.
-     */
-    suspend fun lockRole(role: UserRole): Boolean {
-        _profile.value = _profile.value.copy(role = role)
-        _isRoleLocked.value = true
-        saveProfile()
-        return pushProfileToRemote()
-    }
-
-    /**
-     * Lock the role after onboarding selection. Writes the locked flag
-     * locally and to the remote profile row.
-     *
-     * Kept for callers that don't need to await the result.
-     */
-    fun setRoleLocked() {
-        _isRoleLocked.value = true
-        scope.launch { pushProfileToRemote() }
-    }
-
-    /**
      * Mark onboarding complete (after paywall skip/subscribe).
      */
     fun setOnboardingComplete() {
@@ -398,28 +348,6 @@ object UserManager {
             .putString(KEY_PREFERENCES, json.encodeToString(UserPreferences.serializer(), prefs))
             .apply()
         scope.launch { pushPreferencesToRemote() }
-    }
-
-    fun addPost(post: ChefPost) {
-        _profile.value = _profile.value.copy(
-            posts = listOf(post) + _profile.value.posts
-        )
-        saveProfile()
-    }
-
-    fun removePost(postId: String) {
-        _profile.value = _profile.value.copy(
-            posts = _profile.value.posts.filter { it.id != postId }
-        )
-        saveProfile()
-    }
-
-    fun giveStar() {
-        _profile.value = _profile.value.copy(
-            starsGiven = _profile.value.starsGiven + 1
-        )
-        saveProfile()
-        scope.launch { pushProfileToRemote() }
     }
 
     fun toggleSavedRecipe(recipeId: String) {
@@ -463,16 +391,4 @@ object UserManager {
     }
 
     fun isRecipeSaved(recipeId: String): Boolean = recipeId in _savedRecipeIds.value
-
-    // ---- Helpers ----
-
-    private fun parseRole(s: String): UserRole = when (s.lowercase()) {
-        "chef", "teacher", "chef_teacher", "chef/teacher" -> UserRole.CHEF_TEACHER
-        else -> UserRole.LEARNER
-    }
-
-    private fun roleToString(r: UserRole): String = when (r) {
-        UserRole.CHEF_TEACHER -> "chef_teacher"
-        UserRole.LEARNER -> "learner"
-    }
 }

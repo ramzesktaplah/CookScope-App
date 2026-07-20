@@ -13,7 +13,7 @@ import kotlinx.serialization.Serializable
  * Provides typed access to the managed Postgres database and native Supabase Auth.
  *
  * Tables:
- * - profiles: user profile data (username, bio, role, role_locked, stars, plan)
+ * - profiles: user profile data (username, bio, avatar, plan, onboarding_complete)
  * - saved_recipes: bookmarked recipes per user
  * - user_preferences: dietary tags, skill level, cuisines, allergies
  * - chat_messages: chat history per user
@@ -50,10 +50,6 @@ object SupabaseClient {
         @SerialName("display_name") val displayName: String = "",
         val bio: String = "",
         @SerialName("avatar_url") val avatarUrl: String = "",
-        val role: String = "learner",
-        @SerialName("role_locked") val roleLocked: Boolean = false,
-        @SerialName("stars_count") val starsCount: Int = 0,
-        @SerialName("stars_given") val starsGiven: Int = 0,
         @SerialName("plan_type") val planType: String = "free",
         @SerialName("onboarding_complete") val onboardingComplete: Boolean = false,
         @SerialName("created_at") val createdAt: String? = null,

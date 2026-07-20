@@ -146,9 +146,6 @@ class SupabaseRepository {
         displayName: String,
         bio: String,
         avatarUrl: String,
-        role: String,
-        starsCount: Int,
-        starsGiven: Int,
         planType: String,
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
@@ -159,9 +156,6 @@ class SupabaseRepository {
                     displayName = displayName,
                     bio = bio,
                     avatarUrl = avatarUrl,
-                    role = role,
-                    starsCount = starsCount,
-                    starsGiven = starsGiven,
                     planType = planType,
                 )
             )

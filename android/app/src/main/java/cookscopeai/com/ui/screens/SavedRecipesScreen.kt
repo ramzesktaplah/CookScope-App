@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FilterAlt
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -63,8 +64,9 @@ import cookscopeai.com.ui.theme.GoldPrimary
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SavedRecipesScreen(
-    onBack: () -> Unit,
+    onBack: (() -> Unit)?,
     onRecipeClick: (String) -> Unit,
+    onSettings: () -> Unit = {},
 ) {
     val savedIds by UserManager.savedRecipeIds.collectAsState()
     val allSavedRecipes = savedIds.mapNotNull { RecipeData.byId(it) }
@@ -108,12 +110,16 @@ fun SavedRecipesScreen(
                     .padding(top = 16.dp, start = 4.dp, end = 16.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onBackground,
-                    )
+                if (onBack != null) {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = MaterialTheme.colorScheme.onBackground,
+                        )
+                    }
+                } else {
+                    Spacer(Modifier.width(48.dp))
                 }
                 Text(
                     "Saved Recipes",
@@ -128,6 +134,14 @@ fun SavedRecipesScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium,
                 )
+                Spacer(Modifier.width(8.dp))
+                IconButton(onClick = onSettings) {
+                    Icon(
+                        Icons.Default.Settings,
+                        contentDescription = "Settings",
+                        tint = MaterialTheme.colorScheme.onBackground,
+                    )
+                }
             }
         }
 
