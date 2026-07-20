@@ -78,6 +78,7 @@ import cookscopeai.com.data.ChatHistoryManager
 import cookscopeai.com.data.ChatService
 import cookscopeai.com.data.ChatUsageManager
 import cookscopeai.com.data.SubscriptionManager
+import cookscopeai.com.ui.components.CookScopeTopLogo
 import cookscopeai.com.ui.components.ShimmerDots
 import cookscopeai.com.ui.components.SmoothInput
 import cookscopeai.com.ui.theme.GoldDeep
@@ -360,6 +361,9 @@ fun ChatbotScreen(
                     .fillMaxSize()
                     .imePadding(),
             ) {
+                // Upper-center brand logo
+                CookScopeTopLogo()
+
                 // Two-line top-left bar: history + new chat
                 ChatTopBar(
                     onOpenHistory = { scope.launch { drawerState.open() } },
@@ -463,7 +467,7 @@ private fun ChatTopBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 48.dp, start = 12.dp, end = 12.dp, bottom = 8.dp),
+            .padding(top = 4.dp, start = 12.dp, end = 12.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(
