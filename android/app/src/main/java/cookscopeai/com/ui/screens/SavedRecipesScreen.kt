@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import cookscopeai.com.data.RecipeData
 import cookscopeai.com.data.UserManager
+import cookscopeai.com.ui.components.CookScopeTopLogo
 import cookscopeai.com.ui.theme.GoldPrimary
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -102,6 +103,9 @@ fun SavedRecipesScreen(
             .background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(bottom = 100.dp),
     ) {
+        // Centered brand logo at the top of the saved recipes screen
+        item { CookScopeTopLogo() }
+
         // Top bar
         item {
             Row(

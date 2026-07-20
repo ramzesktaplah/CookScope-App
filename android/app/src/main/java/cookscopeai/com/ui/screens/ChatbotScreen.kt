@@ -79,6 +79,7 @@ import cookscopeai.com.data.ChatService
 import cookscopeai.com.data.ChatUsageManager
 import cookscopeai.com.data.SubscriptionManager
 import cookscopeai.com.ui.components.ChatBubbleSkeleton
+import cookscopeai.com.ui.components.CookScopeTopLogo
 import cookscopeai.com.ui.components.ShimmerDots
 import cookscopeai.com.ui.components.SmoothInput
 import cookscopeai.com.ui.theme.GoldDeep
@@ -305,6 +306,9 @@ fun ChatbotScreen(
                     .fillMaxSize()
                     .imePadding(),
             ) {
+                // Centered brand logo at the top of the chat tab
+                CookScopeTopLogo(modifier = Modifier.padding(vertical = 8.dp))
+
                 // Header with history button (left) and new-chat button (right)
                 ChatHeader(
                     isPremium = isPremium,

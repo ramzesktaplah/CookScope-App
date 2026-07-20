@@ -56,6 +56,7 @@ import cookscopeai.com.data.RecipeData
 import cookscopeai.com.data.RecipeDiscoveryService
 import cookscopeai.com.data.model.Cuisine
 import cookscopeai.com.data.model.Recipe
+import cookscopeai.com.ui.components.CookScopeTopLogo
 import cookscopeai.com.ui.components.RecipeCard
 import cookscopeai.com.ui.theme.GoldDeep
 import cookscopeai.com.ui.theme.GoldLight
@@ -105,6 +106,11 @@ fun HomeScreen(
             .background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
+        // Centered brand logo at the top of the home feed
+        item {
+            CookScopeTopLogo()
+        }
+
         // Header with user greeting + search bar
         item {
             HeaderSection(

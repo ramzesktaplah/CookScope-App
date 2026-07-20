@@ -2,13 +2,13 @@ package cookscopeai.com.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// CookScope — black & gold culinary palette
-// Sleek dark surfaces with warm gold accents, inspired by the brand logo
+// CookScope — black & blue culinary palette
+// Sleek dark surfaces with electric blue accents, inspired by the brand logo
 
-val GoldPrimary = Color(0xFFE6B800)
-val GoldLight = Color(0xFFFFD700)
-val GoldDeep = Color(0xFFD4A017)
-val GoldMuted = Color(0xFFB8860B)
+val GoldPrimary = Color(0xFF0075FF)
+val GoldLight = Color(0xFF3391FF)
+val GoldDeep = Color(0xFF005FCC)
+val GoldMuted = Color(0xFF4A90E2)
 
 val BlackBg = Color(0xFF0A0A0A)
 val BlackSurface = Color(0xFF141414)
@@ -23,16 +23,16 @@ val TextMuted = Color(0xFF808080)
 
 // Legacy aliases retained for gradual migration
 val ForestDeep = Color(0xFF0A0A0A)
-val ForestPrimary = Color(0xFFE6B800)
-val ForestLight = Color(0xFFD4A017)
-val ForestMist = Color(0xFFFFD700)
+val ForestPrimary = Color(0xFF0075FF)
+val ForestLight = Color(0xFF005FCC)
+val ForestMist = Color(0xFF3391FF)
 val ForestSurface = Color(0xFF1A1A1A)
 val ForestBorder = Color(0xFF2A2A2A)
 
-val AmberGold = Color(0xFFE6B800)
-val AmberLight = Color(0xFFFFD700)
-val AmberDeep = Color(0xFFD4A017)
-val Terracotta = Color(0xFFB8860B)
+val AmberGold = Color(0xFF0075FF)
+val AmberLight = Color(0xFF3391FF)
+val AmberDeep = Color(0xFF005FCC)
+val Terracotta = Color(0xFF4A90E2)
 
 val CreamBg = Color(0xFF0A0A0A)
 val CreamSurface = Color(0xFF141414)

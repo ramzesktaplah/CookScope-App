@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import cookscopeai.com.data.RecipeData
 import cookscopeai.com.data.RecipeGenerationService
 import cookscopeai.com.data.UserManager
+import cookscopeai.com.ui.components.CookScopeTopLogo
 import cookscopeai.com.ui.components.SmoothInput
 import cookscopeai.com.ui.theme.GoldPrimary
 import kotlinx.coroutines.delay
@@ -123,10 +124,13 @@ fun CreateRecipeScreen(onRecipeGenerated: (String) -> Unit) {
             .background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(bottom = 32.dp),
     ) {
+        // Centered brand logo at the top of the create screen
+        item { CookScopeTopLogo() }
+
         // Available ingredients — first item, no header above it
         item {
             Column(modifier = Modifier.padding(16.dp)) {
-                Spacer(Modifier.height(48.dp))
+                Spacer(Modifier.height(8.dp))
                 SectionLabel("Available Ingredients", "Separate ingredients by commas or a line")
                 Spacer(Modifier.height(12.dp))
                 SmoothInput(
