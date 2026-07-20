@@ -1,49 +1,70 @@
 package cookscopeai.com.data
 
-import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /**
  * AI chat service powered by the Rork AI Gateway proxy.
  *
- * Model selection is tier-based:
- *  - Free plan:   DeepSeek V4 Flash (deepseek/deepseek-v4-flash) — 5 msgs/month
- *  - Premium:     GPT-4o (openai/gpt-4o) — 100 msgs/month
+ * Model selection:
+ *  - Chat (free and premium): gpt-4o-mini via the CookScope backend
  *
  * The system prompt is personalized using the user's saved cooking preferences
  * (dietary tags, skill level, favorite cuisines, allergies) so the assistant
  * adapts its suggestions to each user.
  *
  * Nutrition-related queries are enriched with USDA FoodData Central data before
- * being sent to the model.
+ * being sent to the model. Photo attachments are accepted only when they depict
+ * food, dishes, ingredients, recipes, or anything cooking-related.
  */
 class ChatService {
 
     private val gateway = DeepSeekService()
+    private val backend = CookScopeBackendService()
     private val usda = UsdaFoodService()
 
-    @Serializable
     data class ChatMessage(
         val role: String,
         val content: String,
+        val imageBase64: String? = null,
     )
+
+    sealed class SendResult {
+        data class Success(val reply: String) : SendResult()
+        data class Error(val message: String) : SendResult()
+        data object DeclinedNonFood : SendResult()
+    }
 
     /**
      * Sends conversation history to the AI and returns the assistant's reply.
      * Automatically detects nutrition-related queries and enriches them with
      * USDA FoodData Central data before sending to the model.
      *
-     * @param isPremium when true, uses GPT-4o; when false, uses DeepSeek V4 Flash.
+     * @param messages Conversation history (last entry is the new user message).
+     * @param onToken Called with the assistant reply when it arrives.
      */
     suspend fun sendMessage(
         messages: List<ChatMessage>,
         onToken: (String) -> Unit,
-        isPremium: Boolean = SubscriptionManager.isPremium.value,
-    ): Result<String> {
+    ): SendResult {
         return try {
-            val lastUserMessage = messages.lastOrNull { it.role == "user" }?.content ?: ""
+            val lastUserMessage = messages.lastOrNull { it.role == "user" }
+                ?: return SendResult.Error("No user message found.")
+
+            // Validate image attachment if present.
+            val imageBase64 = lastUserMessage.imageBase64
+            if (imageBase64 != null) {
+                val isFood = validateFoodImage(imageBase64)
+                if (!isFood) {
+                    return SendResult.DeclinedNonFood
+                }
+            }
 
             // Check if this is a nutrition-related query
-            val nutritionContext = fetchNutritionContext(lastUserMessage)
+            val nutritionContext = fetchNutritionContext(lastUserMessage.content)
 
             // Build a personalized system prompt from the user's preferences
             val basePrompt = buildPersonalizedSystemPrompt()
@@ -53,37 +74,108 @@ class ChatService {
                 basePrompt
             }
 
-            val modelMessages = buildList {
-                add(DeepSeekService.Message(role = "system", content = systemPrompt))
-                messages.forEach { msg ->
-                    add(DeepSeekService.Message(role = msg.role, content = msg.content))
-                }
-            }
+            val model = DeepSeekService.MODEL_CHAT_FREE
+            val modelMessages = buildMultimodalMessages(systemPrompt, messages)
 
-            val model = if (isPremium) {
-                DeepSeekService.MODEL_CHAT_PREMIUM
-            } else {
-                DeepSeekService.MODEL_CHAT_FREE
-            }
-
-            val result = gateway.chat(
-                messages = modelMessages,
+            val result = backend.aiChatMultimodal(
+                messagesJson = modelMessages,
+                model = model,
                 temperature = 0.7,
                 maxTokens = 4096,
-                thinking = false,
-                reasoningEffort = "medium",
-                model = model,
             )
 
             result.fold(
                 onSuccess = { content ->
-                    onToken(content)
-                    Result.success(content)
+                    onToken(content.content)
+                    SendResult.Success(content.content)
                 },
-                onFailure = { Result.failure(it) }
+                onFailure = { SendResult.Error(it.message ?: "AI service failed. Please try again.") }
             )
         } catch (e: Exception) {
-            Result.failure(e)
+            SendResult.Error("Network error. Check your connection and try again.")
+        }
+    }
+
+    /**
+     * Asks a small vision check whether the supplied image is food-related.
+     * Returns true if the image shows food, a dish, ingredients, recipe, or
+     * anything cooking-related. False otherwise.
+     */
+    private suspend fun validateFoodImage(base64: String): Boolean {
+        val prompt = "Is this image related to food, a dish, ingredients, a recipe, or cooking? Reply only YES or NO."
+        val messages = buildJsonArray {
+            add(buildJsonObject {
+                put("role", "user")
+                put("content", buildJsonArray {
+                    add(buildJsonObject {
+                        put("type", "text")
+                        put("text", prompt)
+                    })
+                    add(buildJsonObject {
+                        put("type", "image_url")
+                        put("image_url", buildJsonObject {
+                            put("url", "data:image/jpeg;base64,$base64")
+                            put("detail", "low")
+                        })
+                    })
+                })
+            })
+        }
+
+        return try {
+            val result = backend.aiChatMultimodal(
+                messagesJson = messages,
+                model = DeepSeekService.MODEL_CHAT_FREE,
+                temperature = 0.0,
+                maxTokens = 16,
+            )
+            result.getOrNull()?.content?.trim()?.uppercase()?.startsWith("YES") == true
+        } catch (_: Exception) {
+            // If validation fails, be permissive so the user isn't blocked.
+            true
+        }
+    }
+
+    /**
+     * Builds a multimodal message array compatible with the backend's ai-chat
+     * function. Text-only messages use simple string content; messages with an
+     * image use the OpenAI image_url content array format.
+     */
+    private fun buildMultimodalMessages(
+        systemPrompt: String,
+        messages: List<ChatMessage>,
+    ): JsonArray {
+        return buildJsonArray {
+            add(buildJsonObject {
+                put("role", "system")
+                put("content", systemPrompt)
+            })
+
+            messages.forEach { msg ->
+                if (msg.imageBase64 != null) {
+                    add(buildJsonObject {
+                        put("role", msg.role)
+                        put("content", buildJsonArray {
+                            add(buildJsonObject {
+                                put("type", "text")
+                                put("text", msg.content.ifBlank { "What can you tell me about this?" })
+                            })
+                            add(buildJsonObject {
+                                put("type", "image_url")
+                                put("image_url", buildJsonObject {
+                                    put("url", "data:image/jpeg;base64,${msg.imageBase64}")
+                                    put("detail", "low")
+                                })
+                            })
+                        })
+                    })
+                } else {
+                    add(buildJsonObject {
+                        put("role", msg.role)
+                        put("content", msg.content)
+                    })
+                }
+            }
         }
     }
 
@@ -207,6 +299,7 @@ Always tailor your suggestions to the user's skill level and dietary restriction
     fun close() {
         gateway.close()
         usda.close()
+        backend.close()
     }
 
     companion object {
@@ -220,6 +313,8 @@ Always tailor your suggestions to the user's skill level and dietary restriction
 - Nutrition information and food comparisons
 
 Keep responses concise, practical, and encouraging. Use brief paragraphs or short lists. When suggesting recipes, include key ingredients and a quick method overview. Always be food-safety conscious. If asked about non-food topics, gently redirect to cooking.
+
+When a photo is attached, only respond if it shows food, a dish, ingredients, a recipe, or something cooking-related. If it does not, politely decline and ask the user to share a cooking-related photo.
 
 When nutrition data from USDA FoodData Central is provided, use it to give accurate, specific nutritional comparisons. Present the data in a clear, easy-to-understand way for home cooks."""
     }

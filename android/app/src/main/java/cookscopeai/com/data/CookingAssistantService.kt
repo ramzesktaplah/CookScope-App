@@ -1,7 +1,6 @@
 package cookscopeai.com.data
 
 import cookscopeai.com.data.model.Recipe
-import cookscopeai.com.data.model.CookStep
 
 /**
  * Context-aware AI cooking assistant.
@@ -13,11 +12,10 @@ import cookscopeai.com.data.model.CookStep
  *  - "Can I reduce the heat?"
  *  - "What if I don't have garlic?"
  *
- * Uses the same Rork AI Gateway proxy as [ChatService] (so no API keys
- * ship in the APK) and the same tier-based model selection (DeepSeek for
- * free, GPT-4o for premium). Cooking assistance does NOT count against
- * the chatbot's monthly question limit — it's part of the guided cooking
- * experience, not the general chat tab.
+ * Uses the same Rork AI Gateway proxy as [ChatService] (so no API keys ship
+ * in the APK) and the same gpt-4o-mini model. The cooking assistant is a
+ * Premium-only feature; it also counts against the same 5-question / 3.5-hour
+ * rate-limit window as the chatbot so premium usage is bounded.
  */
 class CookingAssistantService {
 
@@ -45,18 +43,25 @@ class CookingAssistantService {
         conversation: List<ChatMessage>,
         onReply: (String) -> Unit,
     ): Result<String> {
+        if (!SubscriptionManager.isPremium.value) {
+            return Result.failure(
+                Exception("The AI cooking assistant is a Premium feature. Upgrade to ask questions while you cook.")
+            )
+        }
+
+        ChatUsageManager.refreshRemaining()
+        if (!ChatUsageManager.canSendMessage()) {
+            return Result.failure(
+                Exception("Cooking assistant limit reached. You can get assistant again in ${ChatUsageManager.formatTimeRemaining()}.")
+            )
+        }
+
         val systemPrompt = buildCookingSystemPrompt(recipe, currentStep)
         val modelMessages = buildList {
             add(DeepSeekService.Message(role = "system", content = systemPrompt))
             conversation.forEach { msg ->
                 add(DeepSeekService.Message(role = msg.role, content = msg.content))
             }
-        }
-
-        val model = if (SubscriptionManager.isPremium.value) {
-            DeepSeekService.MODEL_CHAT_PREMIUM
-        } else {
-            DeepSeekService.MODEL_CHAT_FREE
         }
 
         return try {
@@ -66,17 +71,18 @@ class CookingAssistantService {
                 maxTokens = 1024,
                 thinking = false,
                 reasoningEffort = "low",
-                model = model,
+                model = DeepSeekService.MODEL_CHAT_PREMIUM,
             )
             result.fold(
                 onSuccess = { content ->
+                    ChatUsageManager.increment()
                     onReply(content)
                     Result.success(content)
                 },
-                onFailure = { Result.failure(it) },
+                onFailure = { Result.failure(Exception("Cooking assistant couldn't answer right now. Please try again.")) },
             )
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception("Network error. Check your connection and try again."))
         }
     }
 
@@ -123,8 +129,7 @@ INGREDIENTS (what the cook has):
 $ingredientsList
 
 STEPS:
-$stepsList
-$allergyLine$dietLine$skillLine
+$stepsList$allergyLine$dietLine$skillLine
 
 HOW TO ANSWER:
 - Be concise and practical. The cook is at the stove — answer in 1-3 short sentences, max ~80 words, unless they ask for detail.

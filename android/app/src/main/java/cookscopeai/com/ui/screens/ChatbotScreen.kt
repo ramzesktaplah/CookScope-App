@@ -1,11 +1,16 @@
 package cookscopeai.com.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -31,12 +36,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ChatBubble
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -59,32 +63,27 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import cookscopeai.com.R
 import cookscopeai.com.data.ChatHistoryManager
-import cookscopeai.com.data.ChatHistoryManager.ChatMessage as StoredChatMessage
 import cookscopeai.com.data.ChatService
 import cookscopeai.com.data.ChatUsageManager
 import cookscopeai.com.data.SubscriptionManager
-import cookscopeai.com.ui.components.ChatBubbleSkeleton
-import cookscopeai.com.ui.components.CookScopeTopLogo
 import cookscopeai.com.ui.components.ShimmerDots
 import cookscopeai.com.ui.components.SmoothInput
 import cookscopeai.com.ui.theme.GoldDeep
 import cookscopeai.com.ui.theme.GoldLight
 import cookscopeai.com.ui.theme.GoldPrimary
+import cookscopeai.com.utilities.toBase64Jpeg
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -95,6 +94,7 @@ private data class ChatBubble(
     val role: String,
     val content: String,
     val isTyping: Boolean = false,
+    val hasImage: Boolean = false,
 )
 
 private val allSuggestionPool = listOf(
@@ -119,26 +119,43 @@ fun ChatbotScreen(
 ) {
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(initialValue = androidx.compose.material3.DrawerValue.Closed)
+    val context = LocalContext.current
 
     val conversations by ChatHistoryManager.conversations.collectAsState()
     val activeId by ChatHistoryManager.activeId.collectAsState()
     val isPremium by SubscriptionManager.isPremium.collectAsState()
     val usedCount by ChatUsageManager.used.collectAsState()
     val remainingCount by ChatUsageManager.remaining.collectAsState()
+    val isRateLimited by ChatUsageManager.isRateLimited.collectAsState()
+    val nextResetMillis by ChatUsageManager.nextResetMillis.collectAsState()
     val canStartNewChat = ChatHistoryManager.canStartNewConversation()
 
     val messages = remember { mutableStateListOf<ChatBubble>() }
     var isLoading by remember { mutableStateOf(false) }
-    var rateLimitHit by remember { mutableStateOf(false) }
     var showChatLimitDialog by remember { mutableStateOf(false) }
+    var pendingImageUri by remember { mutableStateOf<Uri?>(null) }
+    var photoDeclined by remember { mutableStateOf(false) }
     val chatService = remember { ChatService() }
     val listState = rememberLazyListState()
 
     var currentSuggestions by remember { mutableStateOf(allSuggestionPool.shuffled().take(4)) }
 
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+    ) { uri ->
+        if (uri != null) {
+            pendingImageUri = uri
+            photoDeclined = false
+        }
+    }
+
+    fun refreshRateLimit() {
+        ChatUsageManager.refreshRemaining()
+    }
+
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         currentSuggestions = allSuggestionPool.shuffled().take(4)
-        ChatUsageManager.refreshRemaining()
+        refreshRateLimit()
     }
 
     // Load the active conversation's messages into the UI when activeId changes.
@@ -158,8 +175,6 @@ fun ChatbotScreen(
             if (messages.isNotEmpty()) {
                 listState.animateScrollToItem(messages.lastIndex)
             }
-        } else if (active == null) {
-            // No active conversation — start fresh with a welcome bubble only.
         }
     }
 
@@ -186,29 +201,39 @@ fun ChatbotScreen(
     LaunchedEffect(isPremium) {
         val limit = if (isPremium) 30 else 10
         ChatHistoryManager.trimToLimit(limit)
-        ChatUsageManager.refreshRemaining()
+        refreshRateLimit()
     }
 
-    fun sendMessage(text: String) {
-        if (text.isBlank() || isLoading) return
+    fun sendMessage(text: String, imageUri: Uri? = null) {
+        if (text.isBlank() && imageUri == null) return
+        if (isLoading) return
 
         // Rate limit check
+        refreshRateLimit()
         if (!ChatUsageManager.canSendMessage()) {
-            rateLimitHit = true
             return
         }
-        rateLimitHit = false
+        photoDeclined = false
+
+        val imageBase64 = imageUri?.toBase64Jpeg(context)
+        val displayContent = if (imageUri != null) {
+            if (text.isBlank()) "[Photo attached]" else "$text\n[Photo attached]"
+        } else {
+            text
+        }
 
         val userMsg = ChatBubble(
             id = System.currentTimeMillis(),
             role = "user",
-            content = text,
+            content = displayContent,
+            hasImage = imageUri != null,
         )
         messages.add(userMsg)
+        pendingImageUri = null
         isLoading = true
 
-        // Persist the user message
-        ChatHistoryManager.appendMessage("user", text)
+        // Persist the user message (text-only, image refs are descriptive)
+        ChatHistoryManager.appendMessage("user", displayContent)
 
         val typingId = System.currentTimeMillis() + 1
         messages.add(ChatBubble(id = typingId, role = "assistant", content = "", isTyping = true))
@@ -217,36 +242,59 @@ fun ChatbotScreen(
             val history = messages
                 .filter { !it.isTyping && it.content.isNotBlank() && it.id != 0L }
                 .map { ChatService.ChatMessage(it.role, it.content) }
+                .toMutableList()
+
+            // The last user message may include the image.
+            if (history.isNotEmpty() && history.last().role == "user") {
+                history[history.lastIndex] = ChatService.ChatMessage(
+                    role = "user",
+                    content = text,
+                    imageBase64 = imageBase64,
+                )
+            }
 
             val result = chatService.sendMessage(
                 messages = history,
                 onToken = { reply ->
-                val index = messages.indexOfFirst { it.id == typingId }
-                if (index >= 0) {
-                    messages[index] = ChatBubble(
-                        id = typingId,
-                        role = "assistant",
-                        content = reply,
-                    )
-                }
-                ChatHistoryManager.appendMessage("assistant", reply)
-            },
+                    val index = messages.indexOfFirst { it.id == typingId }
+                    if (index >= 0) {
+                        messages[index] = ChatBubble(
+                            id = typingId,
+                            role = "assistant",
+                            content = reply,
+                        )
+                    }
+                    ChatHistoryManager.appendMessage("assistant", reply)
+                },
             )
 
-            if (result.isFailure) {
-                val index = messages.indexOfFirst { it.id == typingId }
-                if (index >= 0) {
-                    messages[index] = ChatBubble(
-                        id = typingId,
-                        role = "assistant",
-                        content = "I'm having trouble connecting right now. Please try again in a moment.",
-                    )
+            when (result) {
+                is ChatService.SendResult.Success -> {
+                    ChatUsageManager.increment()
                 }
-            } else {
-                // Count a successful exchange against the monthly limit.
-                ChatUsageManager.increment()
+                is ChatService.SendResult.DeclinedNonFood -> {
+                    photoDeclined = true
+                    val index = messages.indexOfFirst { it.id == typingId }
+                    if (index >= 0) {
+                        messages.removeAt(index)
+                    }
+                    // Remove the user message too since it was declined.
+                    messages.remove(userMsg)
+                    ChatHistoryManager.deleteLastUserMessage()
+                }
+                is ChatService.SendResult.Error -> {
+                    val index = messages.indexOfFirst { it.id == typingId }
+                    if (index >= 0) {
+                        messages[index] = ChatBubble(
+                            id = typingId,
+                            role = "assistant",
+                            content = result.message,
+                        )
+                    }
+                }
             }
 
+            refreshRateLimit()
             isLoading = false
         }
     }
@@ -259,11 +307,15 @@ fun ChatbotScreen(
         }
         messages.clear()
         ChatHistoryManager.startNewConversation()
+        pendingImageUri = null
+        photoDeclined = false
         scope.launch { drawerState.close() }
     }
 
     fun openConversation(id: String) {
         ChatHistoryManager.setActive(id)
+        pendingImageUri = null
+        photoDeclined = false
         scope.launch { drawerState.close() }
     }
 
@@ -273,6 +325,8 @@ fun ChatbotScreen(
         }
         ChatHistoryManager.deleteConversation(id)
     }
+
+    val tierLabel = if (isPremium) "Premium · CS Donna AI" else "Free · CS Myth AI"
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -306,24 +360,16 @@ fun ChatbotScreen(
                     .fillMaxSize()
                     .imePadding(),
             ) {
-                // Centered brand logo at the top of the chat tab
-                CookScopeTopLogo(modifier = Modifier.padding(vertical = 8.dp))
-
-                // Header with history button (left) and new-chat button (right)
-                ChatHeader(
-                    isPremium = isPremium,
-                    usedCount = usedCount,
-                    remainingCount = remainingCount,
-                    canStartNewChat = canStartNewChat,
+                // Two-line top-left bar: history + new chat
+                ChatTopBar(
                     onOpenHistory = { scope.launch { drawerState.open() } },
                     onNewChat = ::startNewChat,
                 )
 
-                // Rate-limit banner
-                if (rateLimitHit) {
+                // Rate-limit banner above the input area
+                if (isRateLimited) {
                     RateLimitBanner(
-                        isPremium = isPremium,
-                        remaining = remainingCount,
+                        timeRemaining = ChatUsageManager.formatTimeRemaining(),
                         onUpgrade = onUpgrade,
                     )
                 }
@@ -355,129 +401,169 @@ fun ChatbotScreen(
                             maxWidthFraction = 0.75f,
                         )
                     }
-
-                    if (messages.size <= 1 && !isLoading && !rateLimitHit) {
-                        item {
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                "Try asking:",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(bottom = 8.dp),
-                            )
-                            currentSuggestions.forEach { chip ->
-                                SuggestionChip(
-                                    text = chip,
-                                    onClick = { sendMessage(chip) },
-                                )
-                                Spacer(Modifier.height(8.dp))
-                            }
-                        }
-                    }
                 }
 
-                // Usage footer (subtle)
-                UsageFooter(
-                    usedCount = usedCount,
-                    limit = if (isPremium) 100 else 5,
-                    isPremium = isPremium,
-                )
+                // Suggestions + photo preview + input footer
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    if (messages.size <= 1 && !isLoading) {
+                        Text(
+                            "Try asking:",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 8.dp),
+                        )
+                        currentSuggestions.forEach { chip ->
+                            SuggestionChip(
+                                text = chip,
+                                onClick = { sendMessage(chip) },
+                            )
+                            Spacer(Modifier.height(8.dp))
+                        }
+                    }
 
-                // Smooth glass input bar
-                SmoothInput(
-                    onSend = { sendMessage(it) },
-                    placeholder = "Ask about recipes, techniques...",
-                    isLoading = isLoading,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
+                    if (photoDeclined) {
+                        Text(
+                            "Please share a photo of a dish, ingredient, recipe, or anything cooking-related.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(bottom = 6.dp),
+                        )
+                    }
+
+                    if (pendingImageUri != null) {
+                        PhotoPreviewChip(
+                            uri = pendingImageUri,
+                            onRemove = { pendingImageUri = null },
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
+
+                    SmoothInput(
+                        onSend = { sendMessage(it, pendingImageUri) },
+                        placeholder = "Ask about recipes, techniques...",
+                        isLoading = isLoading,
+                        onAttach = { photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                        tierLabel = tierLabel,
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun ChatHeader(
-    isPremium: Boolean,
-    usedCount: Int,
-    remainingCount: Int,
-    canStartNewChat: Boolean,
+private fun ChatTopBar(
     onOpenHistory: () -> Unit,
     onNewChat: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 48.dp, start = 12.dp, end = 12.dp, bottom = 8.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(
-                Brush.horizontalGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.surfaceVariant,
-                        MaterialTheme.colorScheme.surface,
-                        MaterialTheme.colorScheme.surfaceVariant,
-                    )
-                )
-            )
-            .padding(horizontal = 8.dp, vertical = 8.dp),
+            .padding(top = 48.dp, start = 12.dp, end = 12.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // History button — upper left
-        IconButton(onClick = onOpenHistory) {
-            Icon(
-                Icons.Default.History,
-                contentDescription = "Chat history",
-                tint = GoldPrimary,
-            )
-        }
-
-        // Mascot + title
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f))
-                .padding(2.dp),
-            contentAlignment = Alignment.Center,
+        IconButton(
+            onClick = onOpenHistory,
+            modifier = Modifier.size(44.dp),
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.ic_chatbot_mascot),
-                contentDescription = "CookScope AI Chef",
-                modifier = Modifier.fillMaxSize(),
+            Icon(
+                Icons.Default.Menu,
+                contentDescription = "Chat history",
+                tint = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.size(28.dp),
             )
         }
-        Spacer(Modifier.width(8.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                "CookScope Assistant",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-                fontWeight = FontWeight.Bold,
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(7.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(GoldPrimary),
-                )
-                Spacer(Modifier.width(5.dp))
-                val tierLabel = if (isPremium) "Premium · CS Donna AI" else "Free · CS Myth AI"
-                Text(
-                    "$tierLabel · $remainingCount left",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = GoldPrimary,
-                    fontWeight = FontWeight.Medium,
-                )
-            }
-        }
-
-        // New chat button — upper right (dimmed at limit, still tappable so the
-        // upgrade dialog can surface).
-        IconButton(onClick = onNewChat) {
+        Spacer(Modifier.width(4.dp))
+        IconButton(
+            onClick = onNewChat,
+            modifier = Modifier.size(44.dp),
+        ) {
             Icon(
                 Icons.Default.Edit,
                 contentDescription = "New chat",
-                tint = if (canStartNewChat) GoldPrimary else GoldPrimary.copy(alpha = 0.4f),
+                tint = GoldPrimary,
+                modifier = Modifier.size(24.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun PhotoPreviewChip(
+    uri: Uri?,
+    onRemove: () -> Unit,
+) {
+    if (uri == null) return
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(GoldPrimary.copy(alpha = 0.12f))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Default.Restaurant,
+            contentDescription = null,
+            tint = GoldPrimary,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            "Photo ready to send",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
+            Icon(
+                Icons.Default.Close,
+                contentDescription = "Remove photo",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun RateLimitBanner(
+    timeRemaining: String,
+    onUpgrade: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(GoldPrimary.copy(alpha = 0.12f))
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Column {
+            Text(
+                "Question limit reached",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                "You can get assistant in $timeRemaining",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        TextButton(onClick = onUpgrade) {
+            Text(
+                "Upgrade",
+                color = GoldPrimary,
+                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.labelLarge,
             )
         }
     }
@@ -503,7 +589,7 @@ private fun ChatLimitDialog(
                 if (isPremium) {
                     "You've reached the 30-chat limit on Premium. Delete an old chat to start a new one."
                 } else {
-                    "You've reached the 10-chat limit on the Free plan. Upgrade to Premium for 30 chats and 100 questions per month."
+                    "You've reached the 10-chat limit on the Free plan. Upgrade to Premium for 30 chats."
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -525,85 +611,6 @@ private fun ChatLimitDialog(
 }
 
 @Composable
-private fun RateLimitBanner(
-    isPremium: Boolean,
-    remaining: Int,
-    onUpgrade: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(GoldPrimary.copy(alpha = 0.14f))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                Icons.Default.Lock,
-                contentDescription = null,
-                tint = GoldPrimary,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-            Column {
-                Text(
-                    if (isPremium) "Monthly limit reached" else "Free plan limit reached",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    if (isPremium) {
-                        "You've used all 100 questions this month. Resets next month."
-                    } else {
-                        "You've used all 5 free questions this month. Upgrade to Premium for 100/month."
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun UsageFooter(
-    usedCount: Int,
-    limit: Int,
-    isPremium: Boolean,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            "$usedCount / $limit questions this month",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-        )
-        if (!isPremium) {
-            Spacer(Modifier.width(6.dp))
-            Text(
-                "·",
-                color = GoldPrimary,
-                style = MaterialTheme.typography.labelSmall,
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                "Free plan",
-                style = MaterialTheme.typography.labelSmall,
-                color = GoldPrimary,
-                fontWeight = FontWeight.Medium,
-            )
-        }
-    }
-}
-
-@Composable
 private fun ChatHistoryDrawer(
     conversations: List<ChatHistoryManager.Conversation>,
     activeId: String?,
@@ -620,7 +627,6 @@ private fun ChatHistoryDrawer(
         modifier = Modifier.fillMaxHeight(),
         drawerContainerColor = MaterialTheme.colorScheme.surface,
     ) {
-        // Header
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -628,7 +634,7 @@ private fun ChatHistoryDrawer(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                Icons.Default.History,
+                Icons.Default.ChatBubble,
                 contentDescription = null,
                 tint = GoldPrimary,
                 modifier = Modifier.size(22.dp),
@@ -649,8 +655,6 @@ private fun ChatHistoryDrawer(
             }
         }
 
-        // New chat button (dimmed at the plan limit, still tappable so the
-        // upgrade dialog can surface from either entry point).
         NavigationDrawerItem(
             label = {
                 Text(
@@ -800,9 +804,6 @@ private fun ChatMessageBubble(
         }
 
         if (bubble.isTyping) {
-            // Shimmer skeleton: looks like the assistant's reply is being written.
-            // The number of lines is randomized per bubble so repeated typing
-            // states don't feel mechanical.
             val lineCount = remember(bubble.id) { (2..3).random() }
             Box(
                 modifier = Modifier
@@ -878,11 +879,21 @@ private fun ChatMessageBubble(
                     )
                     .padding(horizontal = 14.dp, vertical = 11.dp),
             ) {
-                Text(
-                    text = bubble.content,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (isUser) Color.Black else MaterialTheme.colorScheme.onSurface,
-                )
+                Column {
+                    Text(
+                        text = bubble.content,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (isUser) Color.Black else MaterialTheme.colorScheme.onSurface,
+                    )
+                    if (bubble.hasImage) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Photo attached",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isUser) Color.Black.copy(alpha = 0.7f) else GoldPrimary,
+                        )
+                    }
+                }
             }
         }
 

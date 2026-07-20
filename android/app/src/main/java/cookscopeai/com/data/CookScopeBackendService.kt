@@ -97,6 +97,32 @@ class CookScopeBackendService {
     }
 
     /**
+     * Call the `ai-chat` function with a pre-built multimodal messages array.
+     * Supports image attachments in user messages.
+     */
+    suspend fun aiChatMultimodal(
+        messagesJson: JsonArray,
+        model: String,
+        temperature: Double,
+        maxTokens: Int,
+    ): Result<AiChatResult> {
+        val body = buildJsonObject {
+            put("model", model)
+            put("messages", messagesJson)
+            put("temperature", temperature)
+            put("maxTokens", maxTokens)
+            put("thinking", false)
+            put("reasoningEffort", "low")
+        }
+        return postJson("$functionsBase/ai-chat", body).mapResponse { raw ->
+            val obj = Json.parseToJsonElement(raw).jsonObject
+            val content = obj["content"]?.jsonPrimitive?.contentOrNull ?: ""
+            val reasoning = obj["reasoning"]?.jsonPrimitive?.contentOrNull
+            AiChatResult(content, reasoning)
+        }
+    }
+
+    /**
      * Call the `ai-scan` function with a pre-built multimodal messages array.
      * Returns the raw model content string (caller parses JSON out of it).
      */

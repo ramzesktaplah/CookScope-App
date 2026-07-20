@@ -1,7 +1,7 @@
 // CookScope Edge Function: ai-chat
 // Proxies chat completions to the Rork AI Gateway (toolkit.rork.com) so the
 // Rork toolkit secret never reaches the Android client. Requires a valid
-// Supabase Auth session.
+// Supabase Auth session. Supports both text and multimodal (image_url) messages.
 
 import {
   requireAuth,
@@ -13,8 +13,13 @@ import {
 
 const TOOLKIT_URL = "https://toolkit.rork.com/v2/vercel/v1/chat/completions";
 
+interface ChatMessage {
+  role: string;
+  content: string | unknown[];
+}
+
 interface ChatRequest {
-  messages: Array<{ role: string; content: string }>;
+  messages: ChatMessage[];
   model?: string;
   temperature?: number;
   maxTokens?: number;
@@ -40,7 +45,7 @@ Deno.serve(async (req) => {
     }
 
     const payload = {
-      model: body.model ?? "deepseek/deepseek-v4-flash",
+      model: body.model ?? "openai/gpt-4o-mini",
       messages: body.messages,
       temperature: body.temperature ?? 0.7,
       top_p: 0.95,

@@ -17,8 +17,8 @@ import kotlinx.serialization.json.JsonArray
  * Rork AI Gateway.
  *
  * This client is model-agnostic: callers pass a model ID (e.g.
- * `deepseek/deepseek-v4-flash` for free-tier chat, `openai/gpt-4o` for
- * premium chat, or the default for recipe generation).
+ * `openai/gpt-4o-mini` for chat, or `deepseek/deepseek-v4-flash` for recipe
+ * generation and dish scan).
  */
 class DeepSeekService {
 
@@ -118,9 +118,9 @@ class DeepSeekService {
         const val MODEL_DEFAULT = "deepseek/deepseek-v4-flash"
 
         /** Free-tier chatbot model. */
-        const val MODEL_CHAT_FREE = "deepseek/deepseek-v4-flash"
+        const val MODEL_CHAT_FREE = "openai/gpt-4o-mini"
 
         /** Premium-tier chatbot model. */
-        const val MODEL_CHAT_PREMIUM = "openai/gpt-4o"
+        const val MODEL_CHAT_PREMIUM = "openai/gpt-4o-mini"
     }
 }

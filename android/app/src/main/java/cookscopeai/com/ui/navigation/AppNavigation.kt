@@ -279,6 +279,7 @@ fun AppNavigation() {
                     recipeId = recipeId,
                     onBack = { navController.popBackStack() },
                     onComplete = { navController.popBackStack("home", false) },
+                    onUpgrade = { navController.navigate("paywall") },
                 )
             }
             composable("scan_dish") {

@@ -196,6 +196,30 @@ object ChatHistoryManager {
         persist()
     }
 
+    /**
+     * Remove the most recent user message from the active conversation.
+     * Used when an attachment (e.g., photo) is rejected after it was already
+     * inserted into the UI.
+     */
+    fun deleteLastUserMessage() {
+        val activeId = _activeId.value ?: return
+        _conversations.value = _conversations.value.map { c ->
+            if (c.id == activeId) {
+                val lastUserIndex = c.messages.indexOfLast { it.role == "user" }
+                val newMessages = if (lastUserIndex >= 0) {
+                    c.messages.toMutableList().apply { removeAt(lastUserIndex) }
+                } else {
+                    c.messages
+                }
+                c.copy(
+                    updatedAt = System.currentTimeMillis(),
+                    messages = newMessages,
+                )
+            } else c
+        }
+        persist()
+    }
+
     /** Delete a conversation by id. Clears activeId if it was active. */
     fun deleteConversation(id: String) {
         _conversations.value = _conversations.value.filter { it.id != id }
