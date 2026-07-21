@@ -1,13 +1,9 @@
 package cookscopeai.com
 
-import android.Manifest
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -58,22 +54,9 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             AppTheme {
-                // Request POST_NOTIFICATIONS on Android 13+ if not yet granted.
-                // The launcher is created once; if the permission is already granted
-                // (or on older Android) the launch is skipped.
-                val notificationPermissionLauncher = rememberLauncherForActivityResult(
-                    ActivityResultContracts.RequestPermission(),
-                ) { /* Whether granted or denied, we continue silently. */ }
-
-                androidx.compose.runtime.LaunchedEffect(Unit) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                        !NotificationService.notificationsEnabled()
-                    ) {
-                        notificationPermissionLauncher.launch(
-                            Manifest.permission.POST_NOTIFICATIONS,
-                        )
-                    }
-                }
+                // NOTE: POST_NOTIFICATIONS is requested on the
+                // OnboardingNotificationScreen (after preferences), not here,
+                // so the prompt doesn't fire on the Welcome screen.
                 val sessionStatus by AuthManager.sessionStatus.collectAsState()
                 val isProfileLoading by UserManager.isProfileLoading.collectAsState()
 

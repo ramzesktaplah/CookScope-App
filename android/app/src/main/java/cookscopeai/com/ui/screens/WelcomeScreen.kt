@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -96,7 +97,10 @@ fun WelcomeScreen(
 
             Spacer(Modifier.weight(1f))
 
-            // Legal footer with clickable links
+            // Legal footer with separate clickable links for Terms and Privacy.
+            // ClickableText routes each tap to the link under the click offset,
+            // so tapping "Terms & Conditions" only opens the terms URL and
+            // tapping "Privacy Policy" only opens the privacy URL.
             val annotated = buildAnnotatedString {
                 append("By continuing you agree to our ")
                 pushStringAnnotation(tag = "terms", annotation = TERMS_URL)
@@ -122,19 +126,21 @@ fun WelcomeScreen(
                 pop()
                 append(".")
             }
-            Text(
+            ClickableText(
                 text = annotated,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                lineHeight = 18.sp,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 18.sp,
+                ),
+                onClick = { offset ->
+                    annotated.getStringAnnotations("terms", offset, offset)
+                        .firstOrNull()?.let { openUrl(context, it.item) }
+                    annotated.getStringAnnotations("privacy", offset, offset)
+                        .firstOrNull()?.let { openUrl(context, it.item) }
+                },
                 modifier = Modifier
-                    .clickable {
-                        annotated.getStringAnnotations("terms", 0, annotated.length)
-                            .firstOrNull()?.let { openUrl(context, it.item) }
-                        annotated.getStringAnnotations("privacy", 0, annotated.length)
-                            .firstOrNull()?.let { openUrl(context, it.item) }
-                    }
+                    .fillMaxWidth()
                     .padding(horizontal = 8.dp, vertical = 8.dp),
             )
 
