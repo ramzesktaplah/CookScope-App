@@ -22,9 +22,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.buildJsonObject
@@ -111,6 +114,11 @@ object AuthManager {
     /** Convenience: true when an authenticated session exists. */
     val isAuthenticated: Boolean
         get() = _sessionStatus.value is SessionStatus.Authenticated
+
+    /** Observable convenience flow for UI that needs to react to auth state. */
+    val isAuthenticatedFlow: StateFlow<Boolean> = _sessionStatus
+        .map { it is SessionStatus.Authenticated }
+        .stateIn(scope, SharingStarted.WhileSubscribed(5000), isAuthenticated)
 
     /**
      * Sign up with email/password. The username is stored as user_metadata

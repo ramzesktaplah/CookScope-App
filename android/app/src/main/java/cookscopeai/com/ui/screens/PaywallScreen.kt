@@ -59,37 +59,24 @@ import androidx.compose.ui.unit.sp
 import cookscopeai.com.R
 import cookscopeai.com.data.SubscriptionManager
 import cookscopeai.com.ui.theme.GoldPrimary
-import cookscopeai.com.ui.theme.LightOnboardingTheme
 import kotlinx.coroutines.launch
 
 /**
  * Paywall screen — shown as the last step of onboarding and from the
- * Profile/Settings upgrade paths. Offers monthly and yearly subscriptions.
- *
- * When used in onboarding, it is wrapped in [LightOnboardingTheme] by the
- * caller. When opened from Settings/Profile it follows the user's current
- * app theme (this screen is theme-aware by default).
+ * Settings upgrade path. Offers monthly and yearly subscriptions.
+ * Uses the regular app theme (light or dark).
  */
 @Composable
 fun PaywallScreen(
     onBack: () -> Unit,
     onPurchased: () -> Unit,
     onSkip: () -> Unit = onBack,
-    forceLightMode: Boolean = false,
 ) {
-    val content: @Composable () -> Unit = {
-        PaywallContent(
-            onBack = onBack,
-            onPurchased = onPurchased,
-            onSkip = onSkip,
-        )
-    }
-
-    if (forceLightMode) {
-        LightOnboardingTheme(content = content)
-    } else {
-        content()
-    }
+    PaywallContent(
+        onBack = onBack,
+        onPurchased = onPurchased,
+        onSkip = onSkip,
+    )
 }
 
 @Composable
@@ -279,18 +266,18 @@ private fun PaywallContent(
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = GoldPrimary,
-                            contentColor = Color.Black,
+                            contentColor = Color.White,
                         ),
                         enabled = !isLoading && !isPremium,
                     ) {
                         if (isLoading) {
                             CircularProgressIndicator(
-                                color = Color.Black,
+                                color = Color.White,
                                 strokeWidth = 2.dp,
                                 modifier = Modifier.size(24.dp),
                             )
                         } else if (isPremium) {
-                            Icon(Icons.Default.Check, contentDescription = null, tint = Color.Black)
+                            Icon(Icons.Default.Check, contentDescription = null, tint = Color.White)
                             Spacer(Modifier.width(8.dp))
                             Text("Premium Active", fontWeight = FontWeight.Bold)
                         } else {

@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -27,7 +28,13 @@ import cookscopeai.com.ui.screens.DishScanScreen
 import cookscopeai.com.ui.screens.HomeScreen
 import cookscopeai.com.ui.screens.IngredientScanScreen
 import cookscopeai.com.ui.screens.LoginScreen
-import cookscopeai.com.ui.screens.OnboardingPreferencesScreen
+import cookscopeai.com.ui.screens.OnboardingGreetingScreen
+import cookscopeai.com.ui.screens.OnboardingNotificationScreen
+import cookscopeai.com.ui.screens.OnboardingPreferenceAllergiesScreen
+import cookscopeai.com.ui.screens.OnboardingPreferenceCuisinesScreen
+import cookscopeai.com.ui.screens.OnboardingPreferenceDietScreen
+import cookscopeai.com.ui.screens.OnboardingPreferenceSkillScreen
+import cookscopeai.com.ui.screens.OnboardingSettingPreferencesScreen
 import cookscopeai.com.ui.screens.PaywallScreen
 import cookscopeai.com.ui.screens.PreferencesScreen
 import cookscopeai.com.ui.screens.RecipeDetailScreen
@@ -36,7 +43,6 @@ import cookscopeai.com.ui.screens.SettingsScreen
 import cookscopeai.com.ui.screens.SignUpScreen
 import cookscopeai.com.ui.screens.VerifyEmailScreen
 import cookscopeai.com.ui.screens.WelcomeScreen
-import cookscopeai.com.ui.theme.BlackBg
 import cookscopeai.com.ui.theme.GoldPrimary
 import cookscopeai.com.utilities.openUrl
 import io.github.jan.supabase.auth.status.SessionStatus
@@ -47,16 +53,14 @@ import kotlinx.coroutines.launch
  * and the auth entry point (sign-up vs sign-in):
  *
  *  - Initializing      → splash spinner
- *  - NotAuthenticated  → welcome → signup/login → …
+ *  - NotAuthenticated  → welcome → onboarding preferences → signup/login → …
  *  - Authenticated     → main app (Home, Scan, Chat, Create, Saved)
  *
  * Post-auth routing depends on how the session was established:
- *  - SIGNUP  (new user via the sign-up screen)   → onboarding:
- *      preferences → paywall → home
+ *  - SIGNUP  (new user via the sign-up screen)   → paywall → home
  *  - LOGIN   (returning user via the sign-in screen) → straight to Home
- *      (preferences are never re-shown — onboarding is already complete remotely)
  *  - UNKNOWN (session restored on app launch) → decide from remote flag:
- *      onboarding not done → preferences; otherwise → home.
+ *      onboarding not done → paywall; otherwise → home.
  */
 @Composable
 fun AppNavigation() {
@@ -98,7 +102,7 @@ fun AppNavigation() {
             // If we're on an auth screen when the session becomes
             // authenticated (and profile is loaded), jump forward to the
             // correct destination based on how the session was established.
-            if (route in listOf("welcome", "signup", "verify", "login")) {
+            if (route in listOf("welcome", "signup", "verify", "login", "notification_permission")) {
                 val target = postAuthDestination(
                     entryPoint = authEntryPoint,
                     isOnboardingComplete = isOnboardingComplete,
@@ -126,7 +130,7 @@ fun AppNavigation() {
         (sessionStatus is SessionStatus.Authenticated && isProfileLoading)
     ) {
         Box(
-            modifier = Modifier.fillMaxSize().background(BlackBg),
+            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
             contentAlignment = Alignment.Center,
         ) {
             CircularProgressIndicator(color = GoldPrimary)
@@ -159,17 +163,46 @@ fun AppNavigation() {
         ) {
             composable("splash") { /* handled above */ }
 
-            // Helper: compute the destination after an authenticated session
-            // is established. LOGIN always goes straight to Home; SIGNUP walks
-            // through onboarding based on the remote flags; UNKNOWN (restored
-            // session) falls back to the remote flags.
-            // (Defined as a top-level helper below.)
-
             // ---- Onboarding / Auth flow ----
             composable("welcome") {
                 WelcomeScreen(
-                    onGetStarted = { navController.navigate("signup") },
+                    onGetStarted = { navController.navigate("greeting") },
                     onSignIn = { navController.navigate("login") },
+                )
+            }
+            composable("greeting") {
+                OnboardingGreetingScreen(
+                    onContinue = { navController.navigate("preference_skill") },
+                )
+            }
+            composable("preference_skill") {
+                OnboardingPreferenceSkillScreen(
+                    onContinue = { navController.navigate("preference_diet") },
+                )
+            }
+            composable("preference_diet") {
+                OnboardingPreferenceDietScreen(
+                    onContinue = { navController.navigate("preference_allergies") },
+                )
+            }
+            composable("preference_allergies") {
+                OnboardingPreferenceAllergiesScreen(
+                    onContinue = { navController.navigate("preference_cuisines") },
+                )
+            }
+            composable("preference_cuisines") {
+                OnboardingPreferenceCuisinesScreen(
+                    onContinue = { navController.navigate("setting_preferences") },
+                )
+            }
+            composable("setting_preferences") {
+                OnboardingSettingPreferencesScreen(
+                    onContinue = { navController.navigate("notification_permission") },
+                )
+            }
+            composable("notification_permission") {
+                OnboardingNotificationScreen(
+                    onContinue = { navController.navigate("signup") },
                 )
             }
             composable("signup") {
@@ -180,7 +213,7 @@ fun AppNavigation() {
                         navController.navigate("verify/$email")
                     },
                     onGoogleSuccess = {
-                        // Session becomes Authenticated → LaunchedEffect navigates.
+                        // Session becomes Authenticated → LaunchedEffect navigates to paywall.
                     },
                 )
             }
@@ -190,12 +223,13 @@ fun AppNavigation() {
                     email = email,
                     onBack = { navController.popBackStack() },
                     onContinue = {
-                        // If session is Authenticated, LaunchedEffect moves forward.
-                        // Otherwise, prompt login.
-                        if (!AuthManager.isAuthenticated) {
-                            navController.navigate("login") {
-                                popUpTo("welcome") { inclusive = false }
-                            }
+                        navController.navigate("paywall_onboarding") {
+                            popUpTo("welcome") { inclusive = true }
+                        }
+                    },
+                    onCancelSession = {
+                        navController.navigate("welcome") {
+                            popUpTo("welcome") { inclusive = true }
                         }
                     },
                 )
@@ -207,11 +241,6 @@ fun AppNavigation() {
                         // Session becomes Authenticated → LaunchedEffect navigates.
                     },
                     onSignUp = { navController.navigate("signup") },
-                )
-            }
-            composable("onboarding_preferences") {
-                OnboardingPreferencesScreen(
-                    onContinue = { navController.navigate("paywall_onboarding") },
                 )
             }
             composable("paywall_onboarding") {
@@ -229,7 +258,6 @@ fun AppNavigation() {
                             popUpTo("welcome") { inclusive = true }
                         }
                     },
-                    forceLightMode = true,
                 )
             }
 
@@ -329,13 +357,13 @@ fun AppNavigation() {
  * established and the remote profile has finished loading.
  *
  *  - LOGIN   → returning user → straight to Home (never re-show
- *              preferences, even if the remote flag is somehow false)
- *  - SIGNUP  → new user → walk through onboarding only if no remote profile
+ *              onboarding, even if the remote flag is somehow false)
+ *  - SIGNUP  → new user → walk through paywall only if no remote profile
  *              exists and onboarding hasn't been completed. Existing users
- *              who sign in via the signup screen (e.g., Google) skip onboarding.
+ *              who sign in via the signup screen (e.g., Google) skip paywall.
  *  - UNKNOWN → session restored on app launch → go Home if the user has a
  *              remote profile or has completed onboarding; otherwise show
- *              onboarding preferences so a new user can finish setup.
+ *              the paywall so a new user can finish setup.
  */
 private fun postAuthDestination(
     entryPoint: AuthEntryPoint,
@@ -344,6 +372,6 @@ private fun postAuthDestination(
 ): String = when (entryPoint) {
     AuthEntryPoint.LOGIN -> "home"
     AuthEntryPoint.SIGNUP, AuthEntryPoint.UNKNOWN -> {
-        if (isOnboardingComplete || hasRemoteProfile) "home" else "onboarding_preferences"
+        if (isOnboardingComplete || hasRemoteProfile) "home" else "paywall_onboarding"
     }
 }

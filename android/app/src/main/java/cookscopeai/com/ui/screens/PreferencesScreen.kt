@@ -1,17 +1,15 @@
 package cookscopeai.com.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -111,41 +109,48 @@ fun PreferencesScreen(onBack: () -> Unit) {
 
             PreferenceSectionTitle("Skill Level")
             Spacer(Modifier.height(10.dp))
-            PreferenceOptionsGrid(
-                options = skillOptions,
-                selected = setOf(selectedSkill),
-                onToggle = { selectedSkill = it },
-                singleSelect = true,
-            )
+            skillOptions.forEach { option ->
+                PreferenceOptionCard(
+                    label = option,
+                    isSelected = option == selectedSkill,
+                    onClick = { selectedSkill = option },
+                )
+            }
 
             Spacer(Modifier.height(24.dp))
 
             PreferenceSectionTitle("Dietary Restrictions")
             Spacer(Modifier.height(10.dp))
-            PreferenceOptionsGrid(
+            PreferenceChipGrid(
                 options = dietaryOptions,
                 selected = selectedDietary,
-                onToggle = { selectedDietary = togglePreferenceSet(selectedDietary, it) },
+                onToggle = { tag ->
+                    selectedDietary = if (tag in selectedDietary) selectedDietary - tag else selectedDietary + tag
+                },
             )
 
             Spacer(Modifier.height(24.dp))
 
             PreferenceSectionTitle("Favorite Cuisines")
             Spacer(Modifier.height(10.dp))
-            PreferenceOptionsGrid(
+            PreferenceChipGrid(
                 options = cuisineOptions,
                 selected = selectedCuisines,
-                onToggle = { selectedCuisines = togglePreferenceSet(selectedCuisines, it) },
+                onToggle = { cuisine ->
+                    selectedCuisines = if (cuisine in selectedCuisines) selectedCuisines - cuisine else selectedCuisines + cuisine
+                },
             )
 
             Spacer(Modifier.height(24.dp))
 
             PreferenceSectionTitle("Allergies")
             Spacer(Modifier.height(10.dp))
-            PreferenceOptionsGrid(
+            PreferenceChipGrid(
                 options = allergyOptions,
                 selected = selectedAllergies,
-                onToggle = { selectedAllergies = togglePreferenceSet(selectedAllergies, it) },
+                onToggle = { allergy ->
+                    selectedAllergies = if (allergy in selectedAllergies) selectedAllergies - allergy else selectedAllergies + allergy
+                },
             )
 
             Spacer(Modifier.height(32.dp))
@@ -165,10 +170,10 @@ fun PreferencesScreen(onBack: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = GoldPrimary,
-                    contentColor = Color.Black,
+                    contentColor = Color.White,
                 ),
             ) {
                 Text(

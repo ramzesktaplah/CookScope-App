@@ -57,13 +57,12 @@ import androidx.compose.ui.unit.sp
 import cookscopeai.com.data.AuthManager
 import cookscopeai.com.data.AuthResult
 import cookscopeai.com.ui.theme.GoldPrimary
-import cookscopeai.com.ui.theme.LightOnboardingTheme
 import kotlinx.coroutines.launch
 
 /**
  * Sign Up screen — username, email, password, and Google sign-in button.
  * On success, navigates to the Verify Email screen.
- * Always renders in light mode.
+ * Uses the regular app theme (light or dark).
  */
 @Composable
 fun SignUpScreen(
@@ -71,8 +70,7 @@ fun SignUpScreen(
     onSignUpSuccess: (username: String, email: String) -> Unit,
     onGoogleSuccess: () -> Unit,
 ) {
-    LightOnboardingTheme {
-        val scope = rememberCoroutineScope()
+    val scope = rememberCoroutineScope()
         val context = LocalContext.current
         val keyboard = LocalSoftwareKeyboardController.current
 
@@ -213,7 +211,7 @@ fun SignUpScreen(
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = GoldPrimary,
-                        contentColor = Color.Black,
+                        contentColor = Color.White,
                     ),
                     enabled = !isLoading,
                 ) {
@@ -311,7 +309,6 @@ fun SignUpScreen(
                 Spacer(Modifier.height(24.dp))
             }
         }
-    }
 }
 
 @Composable

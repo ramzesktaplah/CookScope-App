@@ -51,12 +51,11 @@ import androidx.compose.ui.unit.sp
 import cookscopeai.com.data.AuthManager
 import cookscopeai.com.data.AuthResult
 import cookscopeai.com.ui.theme.GoldPrimary
-import cookscopeai.com.ui.theme.LightOnboardingTheme
 import kotlinx.coroutines.launch
 
 /**
  * Login screen for returning users — email + password + Google sign-in.
- * Always renders in light mode.
+ * Uses the regular app theme (light or dark).
  */
 @Composable
 fun LoginScreen(
@@ -64,8 +63,7 @@ fun LoginScreen(
     onLoginSuccess: () -> Unit,
     onSignUp: () -> Unit,
 ) {
-    LightOnboardingTheme {
-        val scope = rememberCoroutineScope()
+    val scope = rememberCoroutineScope()
         val context = LocalContext.current
         val keyboard = LocalSoftwareKeyboardController.current
 
@@ -174,7 +172,7 @@ fun LoginScreen(
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = GoldPrimary,
-                        contentColor = Color.Black,
+                        contentColor = Color.White,
                     ),
                     enabled = !isLoading,
                 ) {
@@ -262,5 +260,4 @@ fun LoginScreen(
                 Spacer(Modifier.height(24.dp))
             }
         }
-    }
 }

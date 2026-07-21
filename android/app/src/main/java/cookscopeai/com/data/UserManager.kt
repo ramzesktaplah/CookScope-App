@@ -78,6 +78,14 @@ object UserManager {
     private val _preferences = MutableStateFlow(UserPreferences())
     val preferences: StateFlow<UserPreferences> = _preferences.asStateFlow()
 
+    /**
+     * Temporary preferences collected during the onboarding flow before the
+     * user confirms their email. They are committed to the remote/local store
+     * only after confirmation, and discarded if the user cancels onboarding.
+     */
+    private val _draftPreferences = MutableStateFlow(UserPreferences())
+    val draftPreferences: StateFlow<UserPreferences> = _draftPreferences.asStateFlow()
+
     @kotlinx.serialization.Serializable
     data class UserPreferences(
         val dietaryTags: List<String> = emptyList(),
@@ -339,8 +347,40 @@ object UserManager {
     }
 
     /**
-     * Update preferences (local + remote). Used by the onboarding
-     * preferences screen and the in-app preferences screen.
+     * Update the draft preferences collected during onboarding. These are not
+     * persisted remotely until the user confirms their email and
+     * [commitDraftPreferences] is called.
+     */
+    fun updateDraftPreferences(prefs: UserPreferences) {
+        _draftPreferences.value = prefs
+    }
+
+    /**
+     * Clear the temporary onboarding draft, e.g., when the user cancels the
+     * flow on the Verify Email screen.
+     */
+    fun clearDraftPreferences() {
+        _draftPreferences.value = UserPreferences()
+    }
+
+    /**
+     * Write the draft preferences to local + remote storage. Called after the
+     * user confirms their email.
+     */
+    suspend fun commitDraftPreferences() {
+        val draftPrefs = _draftPreferences.value
+        if (draftPrefs == UserPreferences()) return
+        _preferences.value = draftPrefs
+        prefs.edit()
+            .putString(KEY_PREFERENCES, json.encodeToString(UserPreferences.serializer(), draftPrefs))
+            .apply()
+        _draftPreferences.value = UserPreferences()
+        pushPreferencesToRemote()
+    }
+
+    /**
+     * Update preferences (local + remote). Used by the in-app preferences
+     * screen.
      */
     fun updatePreferences(prefs: UserPreferences) {
         _preferences.value = prefs
