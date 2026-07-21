@@ -15,6 +15,7 @@ import cookscopeai.com.data.UserManager
 @Composable
 fun OnboardingPreferenceSkillScreen(
     onContinue: () -> Unit,
+    onBack: () -> Unit,
 ) {
     val draft by UserManager.draftPreferences.collectAsState()
     val options = listOf(
@@ -30,6 +31,7 @@ fun OnboardingPreferenceSkillScreen(
     OnboardingScaffold(
         progress = 0.2f,
         onContinue = onContinue,
+        onBack = onBack,
         continueEnabled = selectedSkill.isNotBlank(),
     ) {
         SpeechBubble(

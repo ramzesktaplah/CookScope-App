@@ -15,6 +15,7 @@ import cookscopeai.com.data.UserManager
 @Composable
 fun OnboardingPreferenceAllergiesScreen(
     onContinue: () -> Unit,
+    onBack: () -> Unit,
 ) {
     val draft by UserManager.draftPreferences.collectAsState()
     val options = listOf(
@@ -25,6 +26,7 @@ fun OnboardingPreferenceAllergiesScreen(
     OnboardingScaffold(
         progress = 0.6f,
         onContinue = onContinue,
+        onBack = onBack,
     ) {
         SpeechBubble(
             text = "Any allergies we should know about?",

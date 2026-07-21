@@ -15,6 +15,7 @@ import cookscopeai.com.data.UserManager
 @Composable
 fun OnboardingPreferenceCuisinesScreen(
     onContinue: () -> Unit,
+    onBack: () -> Unit,
 ) {
     val draft by UserManager.draftPreferences.collectAsState()
     val options = listOf(
@@ -28,6 +29,7 @@ fun OnboardingPreferenceCuisinesScreen(
     OnboardingScaffold(
         progress = 0.8f,
         onContinue = onContinue,
+        onBack = onBack,
     ) {
         SpeechBubble(
             text = "What cuisines do you love most?",

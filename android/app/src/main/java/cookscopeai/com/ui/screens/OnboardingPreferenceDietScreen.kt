@@ -15,6 +15,7 @@ import cookscopeai.com.data.UserManager
 @Composable
 fun OnboardingPreferenceDietScreen(
     onContinue: () -> Unit,
+    onBack: () -> Unit,
 ) {
     val draft by UserManager.draftPreferences.collectAsState()
     val options = listOf(
@@ -26,6 +27,7 @@ fun OnboardingPreferenceDietScreen(
     OnboardingScaffold(
         progress = 0.4f,
         onContinue = onContinue,
+        onBack = onBack,
     ) {
         SpeechBubble(
             text = "Do you follow any dietary preferences?",

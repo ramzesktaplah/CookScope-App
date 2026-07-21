@@ -173,26 +173,31 @@ fun AppNavigation() {
             composable("greeting") {
                 OnboardingGreetingScreen(
                     onContinue = { navController.navigate("preference_skill") },
+                    onBack = { navController.popBackStack("welcome", false) },
                 )
             }
             composable("preference_skill") {
                 OnboardingPreferenceSkillScreen(
                     onContinue = { navController.navigate("preference_diet") },
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable("preference_diet") {
                 OnboardingPreferenceDietScreen(
                     onContinue = { navController.navigate("preference_allergies") },
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable("preference_allergies") {
                 OnboardingPreferenceAllergiesScreen(
                     onContinue = { navController.navigate("preference_cuisines") },
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable("preference_cuisines") {
                 OnboardingPreferenceCuisinesScreen(
                     onContinue = { navController.navigate("setting_preferences") },
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable("setting_preferences") {
@@ -214,6 +219,11 @@ fun AppNavigation() {
                     },
                     onGoogleSuccess = {
                         // Session becomes Authenticated → LaunchedEffect navigates to paywall.
+                    },
+                    onSignIn = {
+                        navController.navigate("welcome") {
+                            popUpTo("welcome") { inclusive = true }
+                        }
                     },
                 )
             }
@@ -240,7 +250,12 @@ fun AppNavigation() {
                     onLoginSuccess = {
                         // Session becomes Authenticated → LaunchedEffect navigates.
                     },
-                    onSignUp = { navController.navigate("signup") },
+                    onSignUp = {
+                        // Don't skip preferences — restart the full onboarding
+                        // from Welcome so the user goes through the preference
+                        // flow before reaching sign up again.
+                        navController.popBackStack("welcome", false)
+                    },
                 )
             }
             composable("paywall_onboarding") {

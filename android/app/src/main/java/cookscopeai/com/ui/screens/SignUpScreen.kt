@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -33,6 +34,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -40,6 +42,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -69,6 +72,7 @@ fun SignUpScreen(
     onBack: () -> Unit,
     onSignUpSuccess: (username: String, email: String) -> Unit,
     onGoogleSuccess: () -> Unit,
+    onSignIn: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
         val context = LocalContext.current
@@ -81,6 +85,32 @@ fun SignUpScreen(
         var isLoading by remember { mutableStateOf(false) }
         var isGoogleLoading by remember { mutableStateOf(false) }
         var error by remember { mutableStateOf<String?>(null) }
+        var showSignInDialog by remember { mutableStateOf(false) }
+
+        if (showSignInDialog) {
+            AlertDialog(
+                onDismissRequest = { showSignInDialog = false },
+                title = { Text("Leave onboarding?") },
+                text = {
+                    Text("You'll lose your progress if you go back to sign in. Continue?")
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showSignInDialog = false
+                            onSignIn()
+                        }
+                    ) {
+                        Text("Yes, sign in", color = GoldPrimary, fontWeight = FontWeight.SemiBold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showSignInDialog = false }) {
+                        Text("Cancel")
+                    }
+                },
+            )
+        }
 
         val isFormValid = username.isNotBlank() &&
             email.isNotBlank() &&
@@ -302,7 +332,7 @@ fun SignUpScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = GoldPrimary,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.clickable { onBack() },
+                        modifier = Modifier.clickable { showSignInDialog = true },
                     )
                 }
 
