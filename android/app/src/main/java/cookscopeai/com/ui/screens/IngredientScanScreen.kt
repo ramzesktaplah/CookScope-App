@@ -105,8 +105,8 @@ import kotlin.coroutines.resume
  * suggests matching recipes from the local library and offers to generate a
  * brand-new AI recipe from the detected ingredients.
  *
- * Shares the same monthly AI-vision scan budget as [DishScanScreen]
- * (ScanUsageManager): free 2 / premium 35 per month.
+ * Shares the same 5-hour AI-vision scan window as [DishScanScreen]
+ * (ScanUsageManager): free 10 / premium 50 per 5-hour window, refill at 0.
  */
 @Composable
 fun IngredientScanScreen(
@@ -848,6 +848,7 @@ private fun ScanLimitView(
     onBack: () -> Unit,
     onUpgrade: () -> Unit,
 ) {
+    val timeRemaining = remember(used) { ScanUsageManager.formatTimeRemaining() }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -871,9 +872,9 @@ private fun ScanLimitView(
         Spacer(Modifier.height(8.dp))
         Text(
             if (isPremium) {
-                "You've used all 35 scans this month. Resets next month."
+                "You've used all 50 scans this 5-hour window. Scans refill in $timeRemaining."
             } else {
-                "You've used all 2 free scans this month. Upgrade to Premium for 35 scans / month."
+                "You've used all 10 free scans this 5-hour window. Scans refill in $timeRemaining. Upgrade to Premium for 50 scans / 5 hrs."
             },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

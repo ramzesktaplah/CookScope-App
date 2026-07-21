@@ -43,8 +43,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import cookscopeai.com.data.NotificationService
 import cookscopeai.com.data.SubscriptionManager
 import cookscopeai.com.data.ThemeManager
 import cookscopeai.com.data.UserManager
@@ -66,6 +68,7 @@ fun SettingsScreen(
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
     val isPremium by SubscriptionManager.isPremium.collectAsState()
     val preferences by UserManager.preferences.collectAsState()
+    val context = LocalContext.current
 
     val preferencesSubtitle = buildPreferencesSubtitle(preferences)
 
@@ -118,7 +121,7 @@ fun SettingsScreen(
                 icon = Icons.Default.Notifications,
                 title = "Notifications",
                 subtitle = "Push alerts, recipe updates, new content",
-                onClick = { /* navigate to notifications */ },
+                onClick = { NotificationService.openAppNotificationSettings(context) },
             )
         }
 

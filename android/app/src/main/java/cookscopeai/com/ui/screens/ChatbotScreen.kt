@@ -11,6 +11,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -68,12 +69,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import cookscopeai.com.R
 import cookscopeai.com.data.ChatHistoryManager
 import cookscopeai.com.data.ChatService
 import cookscopeai.com.data.ChatUsageManager
@@ -134,6 +138,7 @@ fun ChatbotScreen(
     val messages = remember { mutableStateListOf<ChatBubble>() }
     var isLoading by remember { mutableStateOf(false) }
     var showChatLimitDialog by remember { mutableStateOf(false) }
+    var showRateLimitedDialog by remember { mutableStateOf(false) }
     var pendingImageUri by remember { mutableStateOf<Uri?>(null) }
     var photoDeclined by remember { mutableStateOf(false) }
     val chatService = remember { ChatService() }
@@ -209,9 +214,10 @@ fun ChatbotScreen(
         if (text.isBlank() && imageUri == null) return
         if (isLoading) return
 
-        // Rate limit check
+        // Rate limit check — surface a dialog instead of silently dropping.
         refreshRateLimit()
         if (!ChatUsageManager.canSendMessage()) {
+            showRateLimitedDialog = true
             return
         }
         photoDeclined = false
@@ -386,6 +392,17 @@ fun ChatbotScreen(
                             onUpgrade()
                         },
                         onDismiss = { showChatLimitDialog = false },
+                    )
+                }
+
+                if (showRateLimitedDialog) {
+                    RateLimitReachedDialog(
+                        timeRemaining = ChatUsageManager.formatTimeRemaining(),
+                        onUpgrade = {
+                            showRateLimitedDialog = false
+                            onUpgrade()
+                        },
+                        onDismiss = { showRateLimitedDialog = false },
                     )
                 }
 
@@ -571,6 +588,41 @@ private fun RateLimitBanner(
             )
         }
     }
+}
+
+@Composable
+private fun RateLimitReachedDialog(
+    timeRemaining: String,
+    onUpgrade: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "Question limit reached",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+        },
+        text = {
+            Text(
+                "You can get assistant in $timeRemaining. Upgrade to Premium for more questions anytime.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onUpgrade) {
+                Text("Upgrade", color = GoldPrimary, fontWeight = FontWeight.SemiBold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Got it")
+            }
+        },
+    )
 }
 
 @Composable
@@ -786,24 +838,14 @@ private fun ChatMessageBubble(
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
     ) {
         if (!isUser) {
-            Box(
+            Image(
+                painter = painterResource(R.drawable.ic_cookscope_mascot),
+                contentDescription = "CookScope assistant",
+                contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .size(32.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(
-                        Brush.radialGradient(
-                            colors = listOf(GoldLight, GoldPrimary)
-                        )
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.Default.AutoAwesome,
-                    contentDescription = null,
-                    tint = Color.Black,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
+                    .clip(RoundedCornerShape(10.dp)),
+            )
             Spacer(Modifier.width(8.dp))
         }
 

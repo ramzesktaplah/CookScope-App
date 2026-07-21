@@ -4,6 +4,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
@@ -31,6 +34,15 @@
                     android:host="login-callback" />
             </intent-filter>
         </activity>
+        <receiver
+            android:name=".data.NotificationReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="cookscopeai.com.DAILY_TRENDING" />
+                <action android:name="cookscopeai.com.WEEKLY_UPDATE" />
+                <action android:name="cookscopeai.com.RATE_LIMIT_RESET" />
+            </intent-filter>
+        </receiver>
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

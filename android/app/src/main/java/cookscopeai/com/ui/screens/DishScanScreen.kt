@@ -93,9 +93,9 @@ import kotlin.coroutines.resume
  * their gallery. The selected image is sent to AI vision for analysis and the
  * results (nutrition, ingredients, health score, dietary info) are displayed.
  *
- * Usage limits (monthly, auto-reset):
- *  - Free plan:   2 scans / month
- *  - Premium:    35 scans / month
+ * Usage limits (5-hour sliding window, refill only at 0):
+ *  - Free plan:   10 scans / 5-hour window
+ *  - Premium:    50 scans / 5-hour window
  *
  * When the limit is reached, a locked screen is shown with an upgrade prompt.
  */
@@ -711,6 +711,7 @@ private fun ScanLimitView(
     onBack: () -> Unit,
     onUpgrade: () -> Unit,
 ) {
+    val timeRemaining = remember(used) { ScanUsageManager.formatTimeRemaining() }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -734,9 +735,9 @@ private fun ScanLimitView(
         Spacer(Modifier.height(8.dp))
         Text(
             if (isPremium) {
-                "You've used all 35 scans this month. Resets next month."
+                "You've used all 50 scans this 5-hour window. Scans refill in $timeRemaining."
             } else {
-                "You've used all 2 free scans this month. Upgrade to Premium for 35 scans / month."
+                "You've used all 10 free scans this 5-hour window. Scans refill in $timeRemaining. Upgrade to Premium for 50 scans / 5 hrs."
             },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

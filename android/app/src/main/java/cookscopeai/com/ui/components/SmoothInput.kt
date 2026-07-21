@@ -1,6 +1,7 @@
 package cookscopeai.com.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -105,6 +106,11 @@ fun SmoothInput(
                         )
                     )
                 )
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
+                    shape = RoundedCornerShape(24.dp),
+                )
                 .padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
         ) {
             Row(
@@ -137,7 +143,7 @@ fun SmoothInput(
                         Text(
                             text = placeholder,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         )
                     }
 
@@ -152,7 +158,7 @@ fun SmoothInput(
                                 isFocused = state.isFocused
                             },
                         textStyle = TextStyle(
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = MaterialTheme.colorScheme.onBackground,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Normal,
                             lineHeight = 22.sp,

@@ -1,9 +1,13 @@
 package cookscopeai.com
 
+import android.Manifest
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -16,6 +20,7 @@ import androidx.compose.runtime.setValue
 import cookscopeai.com.data.AuthManager
 import cookscopeai.com.data.ChatHistoryManager
 import cookscopeai.com.data.ChatUsageManager
+import cookscopeai.com.data.NotificationService
 import cookscopeai.com.data.ScanUsageManager
 import cookscopeai.com.data.SubscriptionManager
 import cookscopeai.com.data.SupabaseClient
@@ -49,9 +54,26 @@ class MainActivity : ComponentActivity() {
         ChatHistoryManager.initialize(this)
         ChatUsageManager.initialize(this)
         ScanUsageManager.initialize(this)
+        NotificationService.initialize(this)
 
         setContent {
             AppTheme {
+                // Request POST_NOTIFICATIONS on Android 13+ if not yet granted.
+                // The launcher is created once; if the permission is already granted
+                // (or on older Android) the launch is skipped.
+                val notificationPermissionLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission(),
+                ) { /* Whether granted or denied, we continue silently. */ }
+
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        !NotificationService.notificationsEnabled()
+                    ) {
+                        notificationPermissionLauncher.launch(
+                            Manifest.permission.POST_NOTIFICATIONS,
+                        )
+                    }
+                }
                 val sessionStatus by AuthManager.sessionStatus.collectAsState()
                 val isProfileLoading by UserManager.isProfileLoading.collectAsState()
 

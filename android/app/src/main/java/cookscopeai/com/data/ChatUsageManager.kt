@@ -74,6 +74,14 @@ object ChatUsageManager {
         }
         persist()
         refreshState()
+
+        // Schedule a "your assistant is waiting" reminder when the user
+        // crosses the limit. No-op if NotificationService isn't initialized.
+        if (_rateLimited.value) {
+            _nextResetMillis.value?.let { resetAt ->
+                NotificationService.scheduleRateLimitReminder(resetAt)
+            }
+        }
         return _remaining.value
     }
 
@@ -94,6 +102,7 @@ object ChatUsageManager {
     /** Reset the counter entirely, e.g. after a successful subscription upgrade. */
     fun reset() {
         resetWindow(System.currentTimeMillis())
+        NotificationService.cancelRateLimitReminder()
     }
 
     private fun resetWindow(now: Long) {
