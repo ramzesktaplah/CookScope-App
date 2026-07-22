@@ -90,6 +90,7 @@ class DeepSeekService {
             messagesJson = messagesJson,
             temperature = temperature,
             maxTokens = maxTokens,
+            model = model,
         )
     }
 

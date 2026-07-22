@@ -313,19 +313,32 @@ fun SavedRecipesScreen(
                             )
                             Spacer(Modifier.height(4.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Default.Star,
-                                    contentDescription = null,
-                                    tint = GoldPrimary,
-                                    modifier = Modifier.size(14.dp),
-                                )
-                                Spacer(Modifier.width(4.dp))
-                                Text(
-                                    "${recipe.rating} • ${recipe.authorName}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = GoldPrimary,
-                                    fontWeight = FontWeight.Medium,
-                                )
+                                if (recipe.authorName == "CookScope AI Scan") {
+                                    Text(
+                                        "Scanned Dish",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = GoldPrimary,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(GoldPrimary.copy(alpha = 0.12f))
+                                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                                    )
+                                } else {
+                                    Icon(
+                                        Icons.Default.Star,
+                                        contentDescription = null,
+                                        tint = GoldPrimary,
+                                        modifier = Modifier.size(14.dp),
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        "${recipe.rating} • ${recipe.authorName}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = GoldPrimary,
+                                        fontWeight = FontWeight.Medium,
+                                    )
+                                }
                             }
                         }
                         Icon(

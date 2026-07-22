@@ -20,7 +20,29 @@ data class DishAnalysis(
     val healthNotes: String = "",
     val portionSize: String = "",
     val mealType: String = "",
-)
+    // ---- New expanded fields ----
+    val primaryIngredients: List<AnalyzedIngredient> = emptyList(),
+    val secondaryIngredients: List<AnalyzedIngredient> = emptyList(),
+    val seasoningSpices: List<AnalyzedIngredient> = emptyList(),
+    val cookingMethods: List<String> = emptyList(),
+    val difficulty: String = "",
+    val cookingTimeMin: Int = 0,
+    val servingSize: String = "",
+    val improvements: List<String> = emptyList(),
+    val perfectPairings: List<String> = emptyList(),
+    val healthyAlternatives: List<String> = emptyList(),
+    val nutritionalAnalysis: String = "",
+) {
+    /** Letter grade derived from healthScore: 90+=A, 80+=B, 70+=C, 60+=D, else F. */
+    val healthGrade: String
+        get() = when {
+            healthScore >= 90 -> "A"
+            healthScore >= 80 -> "B"
+            healthScore >= 70 -> "C"
+            healthScore >= 60 -> "D"
+            else -> "F"
+        }
+}
 
 @Serializable
 data class AnalyzedIngredient(

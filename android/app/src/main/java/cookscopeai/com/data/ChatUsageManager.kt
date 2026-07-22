@@ -10,13 +10,13 @@ import kotlin.math.max
 /**
  * Tracks AI chat usage with a sliding 3.5-hour window.
  *
- *  - Every user gets 5 questions per 3.5-hour window.
- *  - The window only resets when the user has used all 5 questions and the
- *    3.5-hour window has passed. Users with 1-4 questions left keep their
- *    count across the window boundary; they do not get refilled to 5 until
- *    they hit zero and wait.
+ *  - Free plan:    5 questions per 3.5-hour window
+ *  - Premium plan: 50 questions per 3.5-hour window
  *
- *  This window is used for both the chatbot and the premium cooking assistant.
+ * The window only resets when the user has used all questions AND the
+ * 3.5-hour window has passed. Users with 1..(limit-1) questions left keep
+ * their count across the window boundary; they do not get refilled until
+ * they hit zero and wait the full 3.5 hours.
  */
 object ChatUsageManager {
 
@@ -24,14 +24,16 @@ object ChatUsageManager {
     private const val KEY_USED = "used_in_window"
     private const val KEY_WINDOW_START = "window_start_millis"
 
-    private const val WINDOW_LIMIT = 5
+    const val FREE_LIMIT = 5
+    const val PREMIUM_LIMIT = 50
+
     private const val WINDOW_HOURS = 3L
     private const val WINDOW_MINUTES = 30L
     private val WINDOW_DURATION_MILLIS = ((WINDOW_HOURS * 60L) + WINDOW_MINUTES) * 60_000L
 
     private lateinit var prefs: SharedPreferences
 
-    private val _remaining = MutableStateFlow(WINDOW_LIMIT)
+    private val _remaining = MutableStateFlow(FREE_LIMIT)
     val remaining: StateFlow<Int> = _remaining.asStateFlow()
 
     private val _used = MutableStateFlow(0)
@@ -52,10 +54,15 @@ object ChatUsageManager {
 
     private val _windowStart = MutableStateFlow(0L)
 
+    /** Current window limit based on premium status. */
+    fun currentLimit(): Int =
+        if (SubscriptionManager.isPremium.value) PREMIUM_LIMIT else FREE_LIMIT
+
     /** True if the user can send a question right now. */
     fun canSendMessage(): Boolean {
         refreshState()
-        return _used.value < WINDOW_LIMIT || _nextResetMillis.value?.let { System.currentTimeMillis() >= it } == true
+        val limit = currentLimit()
+        return _used.value < limit
     }
 
     /**
@@ -65,7 +72,8 @@ object ChatUsageManager {
      */
     fun increment(): Int {
         val now = System.currentTimeMillis()
-        if (_used.value >= WINDOW_LIMIT && now >= _windowStart.value + WINDOW_DURATION_MILLIS) {
+        val limit = currentLimit()
+        if (_used.value >= limit && now >= _windowStart.value + WINDOW_DURATION_MILLIS) {
             resetWindow(now)
         }
         _used.value += 1
@@ -89,11 +97,12 @@ object ChatUsageManager {
     fun refreshState() {
         val now = System.currentTimeMillis()
         val windowEnd = _windowStart.value + WINDOW_DURATION_MILLIS
+        val limit = currentLimit()
 
-        val atLimit = _used.value >= WINDOW_LIMIT
+        val atLimit = _used.value >= limit
         _rateLimited.value = atLimit && now < windowEnd
         _nextResetMillis.value = if (atLimit && now < windowEnd) windowEnd else null
-        _remaining.value = if (_rateLimited.value) 0 else max(WINDOW_LIMIT - _used.value, 0)
+        _remaining.value = if (_rateLimited.value) 0 else max(limit - _used.value, 0)
     }
 
     /** Alias kept for screens that already call refreshRemaining(). */
@@ -113,6 +122,7 @@ object ChatUsageManager {
     }
 
     private fun persist() {
+        if (!::prefs.isInitialized) return
         prefs.edit()
             .putInt(KEY_USED, _used.value)
             .putLong(KEY_WINDOW_START, _windowStart.value)
@@ -132,6 +142,4 @@ object ChatUsageManager {
             "${minutes}m"
         }
     }
-
-    fun currentLimit(): Int = WINDOW_LIMIT
 }

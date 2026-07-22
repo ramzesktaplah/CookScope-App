@@ -848,7 +848,15 @@ private fun ScanLimitView(
     onBack: () -> Unit,
     onUpgrade: () -> Unit,
 ) {
-    val timeRemaining = remember(used) { ScanUsageManager.formatTimeRemaining() }
+    // Live countdown — recompute every second so the timer ticks down.
+    var tick by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000)
+            tick++
+        }
+    }
+    val timeRemaining = remember(tick) { ScanUsageManager.formatTimeRemaining() }
     Column(
         modifier = Modifier
             .fillMaxSize()

@@ -78,7 +78,16 @@ object SubscriptionManager {
         scope.launch {
             try {
                 val info = Purchases.sharedInstance.awaitCustomerInfo()
+                val wasPremium = _isPremium.value
                 _isPremium.value = info.entitlements[ENTITLEMENT_ID]?.isActive == true
+                // Reset all usage managers when premium status changes so the
+                // user gets their new limits immediately.
+                if (_isPremium.value && !wasPremium) {
+                    ChatUsageManager.reset()
+                    ScanUsageManager.reset()
+                    RecipeGenerationUsageManager.reset()
+                    SearchUsageManager.reset()
+                }
             } catch (_: Exception) {
                 // Silently fail — user might be offline
             }
@@ -118,6 +127,12 @@ object SubscriptionManager {
             val params = PurchaseParams.Builder(activity, pkg).build()
             val result = Purchases.sharedInstance.awaitPurchase(params)
             _isPremium.value = result.customerInfo.entitlements[ENTITLEMENT_ID]?.isActive == true
+            if (_isPremium.value) {
+                ChatUsageManager.reset()
+                ScanUsageManager.reset()
+                RecipeGenerationUsageManager.reset()
+                SearchUsageManager.reset()
+            }
             _isLoading.value = false
             _isPremium.value
         } catch (e: Exception) {
@@ -136,6 +151,12 @@ object SubscriptionManager {
         return try {
             val info = Purchases.sharedInstance.awaitRestore()
             _isPremium.value = info.entitlements[ENTITLEMENT_ID]?.isActive == true
+            if (_isPremium.value) {
+                ChatUsageManager.reset()
+                ScanUsageManager.reset()
+                RecipeGenerationUsageManager.reset()
+                SearchUsageManager.reset()
+            }
             _isLoading.value = false
             _isPremium.value
         } catch (e: Exception) {

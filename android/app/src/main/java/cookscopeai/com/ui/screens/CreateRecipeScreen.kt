@@ -61,6 +61,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cookscopeai.com.data.RecipeData
 import cookscopeai.com.data.RecipeGenerationService
+import cookscopeai.com.data.RecipeGenerationUsageManager
+import cookscopeai.com.data.SubscriptionManager
 import cookscopeai.com.data.UserManager
 import cookscopeai.com.ui.components.CookScopeTopLogo
 import cookscopeai.com.ui.components.SmoothInput
@@ -69,8 +71,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun CreateRecipeScreen(onRecipeGenerated: (String) -> Unit) {
+fun CreateRecipeScreen(
+    onRecipeGenerated: (String) -> Unit,
+    onUpgrade: () -> Unit = {},
+) {
     val savedPrefs by UserManager.preferences.collectAsState()
+    val isPremium by SubscriptionManager.isPremium.collectAsState()
+    val genRemaining by RecipeGenerationUsageManager.remaining.collectAsState()
+    var showLimitDialog by remember { mutableStateOf(false) }
 
     val ingredientList = remember { mutableStateListOf<String>() }
     // Seed defaults from saved onboarding preferences.
@@ -84,7 +92,7 @@ fun CreateRecipeScreen(onRecipeGenerated: (String) -> Unit) {
         mutableStateOf(savedPrefs.dietaryTags.firstOrNull() ?: "Non-Vegan")
     }
     var isGenerating by remember { mutableStateOf(false) }
-    var isPremium by remember { mutableStateOf(false) }
+    var isPremiumGen by remember { mutableStateOf(false) }
     var suggestionSeed by remember { mutableStateOf(0) }
     var generateError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -244,6 +252,22 @@ fun CreateRecipeScreen(onRecipeGenerated: (String) -> Unit) {
 
         // Generate buttons
         item {
+            // Usage chip
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "$genRemaining / ${RecipeGenerationUsageManager.currentLimit()} generations left" +
+                        if (!isPremium) " \u00b7 Free" else " \u00b7 Premium",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
             Column(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -252,8 +276,12 @@ fun CreateRecipeScreen(onRecipeGenerated: (String) -> Unit) {
                 Button(
                     onClick = {
                         if (!isGenerating && ingredientList.isNotEmpty()) {
+                            if (!RecipeGenerationUsageManager.canGenerate()) {
+                                showLimitDialog = true
+                                return@Button
+                            }
                             isGenerating = true
-                            isPremium = true
+                            isPremiumGen = true
                             generateError = null
                             scope.launch {
                                 val result = generationService.generateRecipe(
@@ -267,6 +295,7 @@ fun CreateRecipeScreen(onRecipeGenerated: (String) -> Unit) {
                                 isGenerating = false
                                 result.fold(
                                     onSuccess = { recipe ->
+                                        RecipeGenerationUsageManager.increment()
                                         RecipeData.addRecipe(recipe)
                                         onRecipeGenerated(recipe.id)
                                     },
@@ -304,8 +333,12 @@ fun CreateRecipeScreen(onRecipeGenerated: (String) -> Unit) {
                 Button(
                     onClick = {
                         if (!isGenerating && ingredientList.isNotEmpty()) {
+                            if (!RecipeGenerationUsageManager.canGenerate()) {
+                                showLimitDialog = true
+                                return@Button
+                            }
                             isGenerating = true
-                            isPremium = false
+                            isPremiumGen = false
                             generateError = null
                             scope.launch {
                                 val result = generationService.generateRecipe(
@@ -319,6 +352,7 @@ fun CreateRecipeScreen(onRecipeGenerated: (String) -> Unit) {
                                 isGenerating = false
                                 result.fold(
                                     onSuccess = { recipe ->
+                                        RecipeGenerationUsageManager.increment()
                                         RecipeData.addRecipe(recipe)
                                         onRecipeGenerated(recipe.id)
                                     },
@@ -377,10 +411,37 @@ fun CreateRecipeScreen(onRecipeGenerated: (String) -> Unit) {
                     ingredients = ingredientList.toList(),
                     cuisine = selectedCuisine,
                     skill = selectedSkill,
-                    premium = isPremium,
+                    premium = isPremiumGen,
                 )
             }
         }
+    }
+
+    // Rate limit dialog
+    if (showLimitDialog) {
+        var dialogTick by remember { mutableStateOf(0) }
+        LaunchedEffect(Unit) {
+            while (true) {
+                delay(1000)
+                dialogTick++
+            }
+        }
+        val dialogTimeRemaining = remember(dialogTick) {
+            RecipeGenerationUsageManager.formatTimeRemaining()
+        }
+        RateLimitDialog(
+            featureName = "recipe generations",
+            freeLimit = RecipeGenerationUsageManager.FREE_LIMIT,
+            premiumLimit = RecipeGenerationUsageManager.PREMIUM_LIMIT,
+            windowDescription = if (isPremium) "24-hour window" else "30-minute window",
+            timeRemaining = dialogTimeRemaining,
+            isPremium = isPremium,
+            onUpgrade = {
+                showLimitDialog = false
+                onUpgrade()
+            },
+            onDismiss = { showLimitDialog = false },
+        )
     }
 }
 

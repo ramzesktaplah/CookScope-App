@@ -17,7 +17,10 @@ import cookscopeai.com.data.AuthManager
 import cookscopeai.com.data.ChatHistoryManager
 import cookscopeai.com.data.ChatUsageManager
 import cookscopeai.com.data.NotificationService
+import cookscopeai.com.data.RecipeGenerationUsageManager
+import cookscopeai.com.data.SavedItemLimitManager
 import cookscopeai.com.data.ScanUsageManager
+import cookscopeai.com.data.SearchUsageManager
 import cookscopeai.com.data.SubscriptionManager
 import cookscopeai.com.data.SupabaseClient
 import cookscopeai.com.data.ThemeManager
@@ -50,6 +53,9 @@ class MainActivity : ComponentActivity() {
         ChatHistoryManager.initialize(this)
         ChatUsageManager.initialize(this)
         ScanUsageManager.initialize(this)
+        RecipeGenerationUsageManager.initialize(this)
+        SearchUsageManager.initialize(this)
+        SavedItemLimitManager.initialize(this)
         NotificationService.initialize(this)
 
         setContent {

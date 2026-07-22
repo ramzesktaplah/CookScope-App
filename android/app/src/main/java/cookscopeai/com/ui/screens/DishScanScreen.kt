@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -37,13 +38,22 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.LocalDining
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.TipsAndUpdates
+import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -72,14 +82,21 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import coil3.compose.AsyncImage
 import cookscopeai.com.data.DishScanService
+import cookscopeai.com.data.RecipeData
 import cookscopeai.com.data.ScanUsageManager
 import cookscopeai.com.data.SubscriptionManager
+import cookscopeai.com.data.UserManager
+import cookscopeai.com.data.model.Difficulty
 import cookscopeai.com.data.model.DishAnalysis
+import cookscopeai.com.data.model.Ingredient
+import cookscopeai.com.data.model.IngredientCategory
+import cookscopeai.com.data.model.Recipe
 import cookscopeai.com.ui.theme.GoldDeep
 import cookscopeai.com.ui.theme.GoldLight
 import cookscopeai.com.ui.theme.GoldPrimary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -189,9 +206,19 @@ fun DishScanScreen(
     ) {
         when {
             analysisResult != null -> {
+                var isSaved by remember { mutableStateOf(false) }
                 AnalysisResultView(
                     analysis = analysisResult!!,
                     imagePath = capturedImagePath,
+                    isSaved = isSaved,
+                    onSaveDish = {
+                        if (!isSaved) {
+                            val recipe = analysisResult!!.toRecipe()
+                            RecipeData.addRecipe(recipe)
+                            UserManager.toggleSavedRecipe(recipe.id)
+                            isSaved = true
+                        }
+                    },
                     onBack = onBack,
                     onScanAgain = { resetScan() },
                 )
@@ -711,7 +738,15 @@ private fun ScanLimitView(
     onBack: () -> Unit,
     onUpgrade: () -> Unit,
 ) {
-    val timeRemaining = remember(used) { ScanUsageManager.formatTimeRemaining() }
+    // Live countdown — recompute every second so the timer ticks down.
+    var tick by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000)
+            tick++
+        }
+    }
+    val timeRemaining = remember(tick) { ScanUsageManager.formatTimeRemaining() }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -778,6 +813,8 @@ private fun ScanLimitView(
 private fun AnalysisResultView(
     analysis: DishAnalysis,
     imagePath: String?,
+    isSaved: Boolean,
+    onSaveDish: () -> Unit,
     onBack: () -> Unit,
     onScanAgain: () -> Unit,
 ) {
@@ -787,7 +824,7 @@ private fun AnalysisResultView(
             .background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(bottom = 32.dp),
     ) {
-        // Photo header
+        // ---- 1. Photo header ----
         item {
             Box(
                 modifier = Modifier
@@ -869,71 +906,157 @@ private fun AnalysisResultView(
             }
         }
 
-        // Health Score
+        // ---- 2. Health Score + Grade ----
         item {
-            HealthScoreCard(analysis.healthScore, analysis.healthNotes)
+            HealthScoreCard(analysis.healthScore, analysis.healthGrade, analysis.healthNotes)
         }
 
-        // Calorie highlight
+        // ---- 3. Calorie highlight ----
         item {
             CalorieHighlightCard(analysis.calories, analysis.mealType, analysis.portionSize)
         }
 
-        // Nutrition breakdown
+        // ---- 4. Macronutrient Breakdown (bar chart) ----
         item {
-            SectionTitle("Nutrition Breakdown")
-            NutritionGrid(analysis)
+            Spacer(Modifier.height(16.dp))
+            SectionTitle("Macronutrient Breakdown")
+            MacroBarChart(analysis)
         }
 
-        // Ingredients
-        if (analysis.ingredients.isNotEmpty()) {
-            item {
-                Spacer(Modifier.height(24.dp))
-                SectionTitle("Detected Ingredients")
-            }
-            items(analysis.ingredients) { ingredient ->
-                IngredientRow(ingredient.name, ingredient.amount)
-            }
+        // ---- 5. Complete Nutritional Analysis ----
+        item {
+            Spacer(Modifier.height(16.dp))
+            NutritionalAnalysisCard(analysis)
         }
 
-        // Dietary tags
-        if (analysis.dietaryTags.isNotEmpty()) {
-            item {
-                Spacer(Modifier.height(24.dp))
-                SectionTitle("Dietary Info")
-                TagRow(analysis.dietaryTags, GoldPrimary.copy(alpha = 0.15f), GoldPrimary)
-            }
-        }
-
-        // Allergens
-        if (analysis.allergens.isNotEmpty()) {
+        // ---- 6. Dietary Info & Allergens ----
+        if (analysis.dietaryTags.isNotEmpty() || analysis.allergens.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(16.dp))
-                Text(
-                    "Allergens",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp),
+                DietaryAndAllergenCard(
+                    dietaryTags = analysis.dietaryTags,
+                    allergens = analysis.allergens,
+                    note = analysis.healthNotes,
                 )
-                Spacer(Modifier.height(8.dp))
-                TagRow(analysis.allergens, Color(0xFFE53935).copy(alpha = 0.15f), Color(0xFFE53935))
             }
         }
 
-        // Scan again button
+        // ---- 7. Ingredients Detected (categorized) ----
+        val hasPrimary = analysis.primaryIngredients.isNotEmpty()
+        val hasSecondary = analysis.secondaryIngredients.isNotEmpty()
+        val hasSeasoning = analysis.seasoningSpices.isNotEmpty()
+        val hasFallback = !hasPrimary && analysis.ingredients.isNotEmpty()
+        if (hasPrimary || hasSecondary || hasSeasoning || hasFallback) {
+            item {
+                Spacer(Modifier.height(24.dp))
+                SectionTitle("Ingredients Detected")
+            }
+        }
+        if (hasPrimary) {
+            item { SubsectionLabel("Primary Ingredients") }
+            items(analysis.primaryIngredients) { ing ->
+                IngredientRow(ing.name, ing.amount)
+            }
+        }
+        if (hasSecondary) {
+            item { SubsectionLabel("Secondary Ingredients") }
+            items(analysis.secondaryIngredients) { ing ->
+                IngredientRow(ing.name, ing.amount)
+            }
+        }
+        if (hasSeasoning) {
+            item { SubsectionLabel("Seasoning & Spices") }
+            items(analysis.seasoningSpices) { ing ->
+                IngredientRow(ing.name, ing.amount)
+            }
+        }
+        if (hasFallback) {
+            items(analysis.ingredients) { ing ->
+                IngredientRow(ing.name, ing.amount)
+            }
+        }
+
+        // ---- 8. Cooking Analysis ----
+        item {
+            Spacer(Modifier.height(24.dp))
+            CookingAnalysisCard(analysis)
+        }
+
+        // ---- 9. AI Recommendations ----
+        item {
+            Spacer(Modifier.height(24.dp))
+            SectionTitle("AI Recommendations")
+        }
+        if (analysis.improvements.isNotEmpty()) {
+            item {
+                RecommendationCard(
+                    title = "Improvements",
+                    icon = Icons.Default.TipsAndUpdates,
+                    items = analysis.improvements,
+                )
+            }
+        }
+        if (analysis.perfectPairings.isNotEmpty()) {
+            item {
+                RecommendationCard(
+                    title = "Perfect Pairings",
+                    icon = Icons.Default.LocalDining,
+                    items = analysis.perfectPairings,
+                )
+            }
+        }
+        if (analysis.healthyAlternatives.isNotEmpty()) {
+            item {
+                RecommendationCard(
+                    title = "Healthy Alternatives",
+                    icon = Icons.Default.Lightbulb,
+                    items = analysis.healthyAlternatives,
+                )
+            }
+        }
+
+        // ---- 10. Save + Scan Again buttons ----
         item {
             Spacer(Modifier.height(32.dp))
+            // Save This Dish button
+            val saveBg: androidx.compose.ui.graphics.Brush =
+                if (isSaved) androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.surface)
+                else Brush.linearGradient(listOf(GoldLight, GoldPrimary, GoldDeep))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
                     .height(54.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(
-                        Brush.linearGradient(
-                            listOf(GoldLight, GoldPrimary, GoldDeep)
-                        )
+                    .background(saveBg)
+                    .clickable { if (!isSaved) onSaveDish() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        if (isSaved) Icons.Default.CheckCircle else Icons.Default.BookmarkBorder,
+                        contentDescription = null,
+                        tint = if (isSaved) Color(0xFF4CAF50) else Color.Black,
+                        modifier = Modifier.size(20.dp),
                     )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (isSaved) "Saved to Your Recipes" else "Save This Dish",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = if (isSaved) Color(0xFF4CAF50) else Color.Black,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            // Scan Another Dish button
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .height(54.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surface)
                     .clickable { onScanAgain() },
                 contentAlignment = Alignment.Center,
             ) {
@@ -941,14 +1064,14 @@ private fun AnalysisResultView(
                     Icon(
                         Icons.Default.CameraAlt,
                         contentDescription = null,
-                        tint = Color.Black,
+                        tint = GoldPrimary,
                         modifier = Modifier.size(20.dp),
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
                         "Scan Another Dish",
                         style = MaterialTheme.typography.titleMedium,
-                        color = Color.Black,
+                        color = GoldPrimary,
                         fontWeight = FontWeight.Bold,
                     )
                 }
@@ -957,8 +1080,48 @@ private fun AnalysisResultView(
     }
 }
 
+/** Convert a DishAnalysis into a Recipe so it can be saved to the user's library. */
+private fun DishAnalysis.toRecipe(): Recipe {
+    val allIngs = (primaryIngredients + secondaryIngredients + seasoningSpices)
+        .ifEmpty { ingredients }
+    val mappedIngredients = allIngs.map { ing ->
+        Ingredient(
+            name = ing.name,
+            amount = ing.amount,
+            category = IngredientCategory.PANTRY,
+        )
+    }
+    val diff = when (difficulty.lowercase()) {
+        "easy" -> Difficulty.EASY
+        "hard", "advanced" -> Difficulty.HARD
+        else -> Difficulty.MEDIUM
+    }
+    return Recipe(
+        id = "scan_${System.currentTimeMillis()}",
+        title = dishName.ifBlank { "Scanned Dish" },
+        description = description,
+        cuisine = "Scanned Dish",
+        difficulty = diff,
+        cookTimeMin = cookingTimeMin,
+        servings = 1,
+        caloriesPerServing = calories,
+        proteinG = proteinG,
+        carbsG = carbsG,
+        fatG = fatG,
+        imageUrl = "",
+        tags = dietaryTags,
+        ingredients = mappedIngredients,
+        steps = emptyList(),
+        tips = improvements,
+        rating = 0f,
+        reviewCount = 0,
+        authorName = "CookScope AI Scan",
+        isPremium = false,
+    )
+}
+
 @Composable
-private fun HealthScoreCard(score: Int, notes: String) {
+private fun HealthScoreCard(score: Int, grade: String, notes: String) {
     val scoreColor = when {
         score >= 70 -> Color(0xFF4CAF50)
         score >= 40 -> GoldPrimary
@@ -992,6 +1155,7 @@ private fun HealthScoreCard(score: Int, notes: String) {
                     fontWeight = FontWeight.Bold,
                 )
             }
+            // Grade badge
             Box(
                 modifier = Modifier
                     .size(72.dp)
@@ -999,12 +1163,19 @@ private fun HealthScoreCard(score: Int, notes: String) {
                     .background(scoreColor.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    "$score",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = scoreColor,
-                    fontWeight = FontWeight.Bold,
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        grade,
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = scoreColor,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        "Grade",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = scoreColor.copy(alpha = 0.7f),
+                    )
+                }
             }
         }
         if (notes.isNotBlank()) {
@@ -1194,6 +1365,343 @@ private fun SectionTitle(title: String) {
         fontWeight = FontWeight.Bold,
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
     )
+}
+
+@Composable
+private fun SubsectionLabel(label: String) {
+    Text(
+        label,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+    )
+}
+
+@Composable
+private fun MacroBarChart(analysis: DishAnalysis) {
+    val macros = listOf(
+        "Protein" to analysis.proteinG to Color(0xFF4CAF50),
+        "Carbs" to analysis.carbsG to Color(0xFF2196F3),
+        "Fat" to analysis.fatG to Color(0xFFFF9800),
+    )
+    val maxVal = macros.maxOf { it.first.second.toFloat() }.coerceAtLeast(1f)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(20.dp),
+    ) {
+        macros.forEach { (pair, color) ->
+            val (label, grams) = pair
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.width(70.dp),
+                )
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(24.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth((grams.toFloat() / maxVal).coerceIn(0f, 1f))
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(color),
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "${grams}g",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = color,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.width(48.dp),
+                )
+            }
+            if (label != "Fat") Spacer(Modifier.height(10.dp))
+        }
+    }
+}
+
+@Composable
+private fun NutritionalAnalysisCard(analysis: DishAnalysis) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable { expanded = !expanded }
+            .padding(20.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                "Complete Nutritional Analysis",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+                fontWeight = FontWeight.Bold,
+            )
+            Icon(
+                if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = if (expanded) "Collapse" else "Expand",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp),
+            )
+        }
+        if (expanded) {
+            Spacer(Modifier.height(12.dp))
+            // Micronutrients grid
+            val micros = listOf(
+                "Fiber" to "${analysis.fiberG}g",
+                "Sugar" to "${analysis.sugarG}g",
+                "Sodium" to "${analysis.sodiumMg}mg",
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                micros.forEach { (label, value) ->
+                    NutrientCell(label, value, Modifier.weight(1f))
+                }
+            }
+            if (analysis.nutritionalAnalysis.isNotBlank()) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    analysis.nutritionalAnalysis,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun DietaryAndAllergenCard(
+    dietaryTags: List<String>,
+    allergens: List<String>,
+    note: String,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(20.dp),
+    ) {
+        if (dietaryTags.isNotEmpty()) {
+            Text(
+                "Dietary Info",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onBackground,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(8.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                dietaryTags.forEach { tag ->
+                    Text(
+                        tag,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = GoldPrimary,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(GoldPrimary.copy(alpha = 0.15f))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    )
+                }
+            }
+        }
+        if (allergens.isNotEmpty()) {
+            if (dietaryTags.isNotEmpty()) Spacer(Modifier.height(16.dp))
+            Text(
+                "Allergens",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onBackground,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(8.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                allergens.forEach { tag ->
+                    Text(
+                        tag,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFFE53935),
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFE53935).copy(alpha = 0.15f))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    )
+                }
+            }
+        }
+        if (note.isNotBlank()) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                note,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CookingAnalysisCard(analysis: DishAnalysis) {
+    val hasCookingMethods = analysis.cookingMethods.isNotEmpty()
+    val hasDifficulty = analysis.difficulty.isNotBlank()
+    val hasCookingTime = analysis.cookingTimeMin > 0
+    val hasServingSize = analysis.servingSize.isNotBlank()
+    if (!hasCookingMethods && !hasDifficulty && !hasCookingTime && !hasServingSize) return
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(20.dp),
+    ) {
+        Text(
+            "Cooking Analysis",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onBackground,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(12.dp))
+        // Cooking methods chips
+        if (hasCookingMethods) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                analysis.cookingMethods.forEach { method ->
+                    Text(
+                        method.replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = GoldPrimary,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(GoldPrimary.copy(alpha = 0.12f))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+        // Difficulty, cooking time, serving size
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            if (hasDifficulty) {
+                CookingMetricCell("Difficulty", analysis.difficulty, Modifier.weight(1f))
+            }
+            if (hasCookingTime) {
+                CookingMetricCell("Cook Time", "${analysis.cookingTimeMin} min", Modifier.weight(1f))
+            }
+            if (hasServingSize) {
+                CookingMetricCell("Serving", analysis.servingSize, Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun CookingMetricCell(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            .padding(vertical = 12.dp, horizontal = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            value,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onBackground,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun RecommendationCard(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    items: List<String>,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(20.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = GoldPrimary,
+                modifier = Modifier.size(22.dp),
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        items.forEach { item ->
+            Row(modifier = Modifier.padding(vertical = 4.dp)) {
+                Text(
+                    "\u2022",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = GoldPrimary,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(end = 8.dp),
+                )
+                Text(
+                    item,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
 }
 
 @Composable

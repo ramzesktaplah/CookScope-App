@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -89,6 +90,7 @@ import cookscopeai.com.ui.theme.GoldDeep
 import cookscopeai.com.ui.theme.GoldLight
 import cookscopeai.com.ui.theme.GoldPrimary
 import cookscopeai.com.utilities.toBase64Jpeg
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -364,8 +366,7 @@ fun ChatbotScreen(
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .imePadding(),
+                    .fillMaxSize(),
             ) {
                 // Upper-center brand logo
                 CookScopeTopLogo()
@@ -378,8 +379,17 @@ fun ChatbotScreen(
 
                 // Rate-limit banner above the input area
                 if (isRateLimited) {
+                    // Live countdown — recompute every second so the timer ticks down.
+                    var chatTick by remember { mutableStateOf(0) }
+                    LaunchedEffect(Unit) {
+                        while (true) {
+                            delay(1000)
+                            chatTick++
+                        }
+                    }
+                    val chatTimeRemaining = remember(chatTick) { ChatUsageManager.formatTimeRemaining() }
                     RateLimitBanner(
-                        timeRemaining = ChatUsageManager.formatTimeRemaining(),
+                        timeRemaining = chatTimeRemaining,
                         onUpgrade = onUpgrade,
                     )
                 }
@@ -396,8 +406,17 @@ fun ChatbotScreen(
                 }
 
                 if (showRateLimitedDialog) {
+                    // Live countdown for the dialog too.
+                    var dialogTick by remember { mutableStateOf(0) }
+                    LaunchedEffect(Unit) {
+                        while (true) {
+                            delay(1000)
+                            dialogTick++
+                        }
+                    }
+                    val dialogTimeRemaining = remember(dialogTick) { ChatUsageManager.formatTimeRemaining() }
                     RateLimitReachedDialog(
-                        timeRemaining = ChatUsageManager.formatTimeRemaining(),
+                        timeRemaining = dialogTimeRemaining,
                         onUpgrade = {
                             showRateLimitedDialog = false
                             onUpgrade()
@@ -424,10 +443,15 @@ fun ChatbotScreen(
                     }
                 }
 
-                // Suggestions + photo preview + input footer
+                // Suggestions + photo preview + input footer.
+                // imePadding + navigationBarsPadding here (not on the parent)
+                // so the message list doesn't shrink when the keyboard opens —
+                // only the footer slides up.
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .imePadding()
+                        .navigationBarsPadding()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
                     if (messages.size <= 1 && !isLoading) {

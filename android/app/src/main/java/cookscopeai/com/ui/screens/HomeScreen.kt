@@ -35,10 +35,12 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import java.util.Calendar
 import androidx.compose.ui.Alignment
@@ -54,6 +56,8 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import cookscopeai.com.data.RecipeData
 import cookscopeai.com.data.RecipeDiscoveryService
+import cookscopeai.com.data.SearchUsageManager
+import cookscopeai.com.data.SubscriptionManager
 import cookscopeai.com.data.model.Cuisine
 import cookscopeai.com.data.model.Recipe
 import cookscopeai.com.ui.components.CookScopeTopLogo
@@ -69,16 +73,26 @@ fun HomeScreen(
     onRecipeClick: (String) -> Unit,
     onExploreClick: () -> Unit,
     onScanClick: () -> Unit,
+    onUpgrade: () -> Unit = {},
 ) {
     val discoveryService = remember { RecipeDiscoveryService() }
     val scope = rememberCoroutineScope()
+    val isPremium by SubscriptionManager.isPremium.collectAsState()
     var isLoading by remember { mutableStateOf(true) }
     var featuredRecipes by remember { mutableStateOf<List<Recipe>>(emptyList()) }
     var trendingRecipes by remember { mutableStateOf<List<Recipe>>(emptyList()) }
-    var searchQuery by remember { mutableStateOf("") }
-    var searchResults by remember { mutableStateOf<List<Recipe>>(emptyList()) }
-    var isSearching by remember { mutableStateOf(false) }
-    var hasSearched by remember { mutableStateOf(false) }
+    // Use rememberSaveable so search state survives navigation to recipe detail and back.
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var isSearching by rememberSaveable { mutableStateOf(false) }
+    var hasSearched by rememberSaveable { mutableStateOf(false) }
+    // Store search result IDs in rememberSaveable, re-resolve to Recipe objects on recompose.
+    var searchResultIds by rememberSaveable {
+        mutableStateOf<List<String>>(emptyList())
+    }
+    var searchResults by remember(searchResultIds) {
+        mutableStateOf(searchResultIds.mapNotNull { RecipeData.byId(it) })
+    }
+    var showSearchLimitDialog by remember { mutableStateOf(false) }
 
     // Load featured recipes and today's server-side trending recipes.
     // Trending falls back to the local seed list if the server call fails.
@@ -130,13 +144,22 @@ fun HomeScreen(
                 onSearchChange = { searchQuery = it },
                 onSearch = {
                     if (searchQuery.isNotBlank()) {
+                        // Check search rate limit before firing.
+                        if (!SearchUsageManager.canSearch()) {
+                            showSearchLimitDialog = true
+                            return@HeaderSection
+                        }
                         isSearching = true
                         hasSearched = true
                         scope.launch {
                             val result = discoveryService.searchRecipes(searchQuery)
                             isSearching = false
                             result.fold(
-                                onSuccess = { recipes -> searchResults = recipes },
+                                onSuccess = { recipes ->
+                                    searchResultIds = recipes.map { it.id }
+                                    searchResults = recipes
+                                    SearchUsageManager.increment()
+                                },
                                 onFailure = { searchResults = emptyList() }
                             )
                         }
@@ -145,6 +168,7 @@ fun HomeScreen(
                 onClearSearch = {
                     searchQuery = ""
                     searchResults = emptyList()
+                    searchResultIds = emptyList()
                     hasSearched = false
                 },
             )
@@ -282,6 +306,33 @@ fun HomeScreen(
                 }
             }
         }
+    }
+
+    // Search rate limit dialog
+    if (showSearchLimitDialog) {
+        var searchDialogTick by remember { mutableStateOf(0) }
+        LaunchedEffect(Unit) {
+            while (true) {
+                delay(1000)
+                searchDialogTick++
+            }
+        }
+        val searchTimeRemaining = remember(searchDialogTick) {
+            SearchUsageManager.formatTimeRemaining()
+        }
+        RateLimitDialog(
+            featureName = "searches",
+            freeLimit = SearchUsageManager.FREE_LIMIT,
+            premiumLimit = SearchUsageManager.PREMIUM_LIMIT,
+            windowDescription = "24-hour window",
+            timeRemaining = searchTimeRemaining,
+            isPremium = isPremium,
+            onUpgrade = {
+                showSearchLimitDialog = false
+                onUpgrade()
+            },
+            onDismiss = { showSearchLimitDialog = false },
+        )
     }
 }
 

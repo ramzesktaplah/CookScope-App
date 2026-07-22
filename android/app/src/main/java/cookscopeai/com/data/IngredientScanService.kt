@@ -49,6 +49,7 @@ class IngredientScanService {
                 messagesJson = messagesArray,
                 temperature = 0.2,
                 maxTokens = 2048,
+                model = "openai/gpt-4o-mini",
             )
 
             if (result.isFailure) {

@@ -130,8 +130,10 @@ class CookScopeBackendService {
         messagesJson: JsonArray,
         temperature: Double,
         maxTokens: Int,
+        model: String = "openai/gpt-4o-mini",
     ): Result<String> {
         val body = buildJsonObject {
+            put("model", model)
             put("messages", messagesJson)
             put("temperature", temperature)
             put("maxTokens", maxTokens)
