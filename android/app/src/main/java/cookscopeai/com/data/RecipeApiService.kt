@@ -81,6 +81,32 @@ class RecipeApiService {
     }
 
     /**
+     * Fetch today's trending recipes from the server-side cache.
+     * The `trending-fetch` edge function queries the trending_recipes
+     * table (populated daily by the pg_cron job) and returns rows with
+     * the full recipeapi.io payload in `recipe_data`.
+     */
+    suspend fun getTrendingRecipes(): Result<List<Recipe>> {
+        return try {
+            val result = backend.trendingFetch()
+            if (result.isFailure) {
+                return Result.failure(result.exceptionOrNull() ?: Exception("Trending fetch failed"))
+            }
+            val response = jsonParser.decodeFromString<TrendingFetchResponse>(result.getOrThrow())
+            val recipes = response.data.map { row ->
+                mapApiRecipeToRecipe(row.recipeData)
+            }
+            if (recipes.isEmpty()) {
+                Result.failure(Exception("No trending recipes available"))
+            } else {
+                Result.success(recipes)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Get random recipes for discovery on the Home screen.
      * The backend fans out to recipeapi.io's /recipes/random endpoint.
      */

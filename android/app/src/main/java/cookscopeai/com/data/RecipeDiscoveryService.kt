@@ -101,6 +101,26 @@ class RecipeDiscoveryService {
     }
 
     /**
+     * Load today's trending recipes from the server-side cache.
+     * Falls back gracefully if the trending table is empty or the
+     * network call fails.
+     */
+    suspend fun loadTrendingRecipes(): Result<List<Recipe>> {
+        return try {
+            val result = apiService.getTrendingRecipes()
+            result.fold(
+                onSuccess = { recipes ->
+                    RecipeData.setApiRecipes(recipes)
+                    Result.success(recipes)
+                },
+                onFailure = { Result.failure(it) }
+            )
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Load random recipes for Home screen discovery.
      */
     suspend fun loadRandomRecipes(count: Int = 10): Result<List<Recipe>> {

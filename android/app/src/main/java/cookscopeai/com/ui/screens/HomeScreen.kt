@@ -80,20 +80,32 @@ fun HomeScreen(
     var isSearching by remember { mutableStateOf(false) }
     var hasSearched by remember { mutableStateOf(false) }
 
-    // Load 6 random featured recipes and 10 trending on first launch
+    // Load featured recipes and today's server-side trending recipes.
+    // Trending falls back to the local seed list if the server call fails.
     LaunchedEffect(Unit) {
         isLoading = true
-        val result = discoveryService.loadRandomRecipes(6)
-        result.fold(
+        val featuredResult = discoveryService.loadRandomRecipes(6)
+        featuredResult.fold(
             onSuccess = { recipes ->
                 if (recipes.isNotEmpty()) {
                     featuredRecipes = recipes
+                }
+            },
+            onFailure = {
+                featuredRecipes = RecipeData.featured
+            }
+        )
+
+        val trendingResult = discoveryService.loadTrendingRecipes()
+        trendingResult.fold(
+            onSuccess = { recipes ->
+                if (recipes.isNotEmpty()) {
+                    trendingRecipes = recipes.take(10)
+                } else {
                     trendingRecipes = RecipeData.trending.take(10)
                 }
             },
             onFailure = {
-                // Fall back to seed data
-                featuredRecipes = RecipeData.featured
                 trendingRecipes = RecipeData.trending.take(10)
             }
         )

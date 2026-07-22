@@ -188,6 +188,15 @@ class CookScopeBackendService {
     }
 
     /**
+     * Call the `trending-fetch` function to get today's server-side trending
+     * recipes. Returns the raw `{ data: [...] }` payload as a string.
+     */
+    suspend fun trendingFetch(): Result<String> {
+        val body = buildJsonObject { put("count", 10) }
+        return postJson("$functionsBase/trending-fetch", body).mapResponse { it }
+    }
+
+    /**
      * Call the `recipe-random` function with a count (1–10).
      * Returns the raw `{ data: [...] }` payload as a string.
      */

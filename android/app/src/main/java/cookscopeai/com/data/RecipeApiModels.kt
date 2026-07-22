@@ -4,6 +4,29 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
+ * Response from the `trending-fetch` edge function.
+ * Each row contains the full recipeapi.io payload in `recipe_data`.
+ */
+@Serializable
+data class TrendingFetchResponse(
+    val data: List<TrendingRecipeRow> = emptyList(),
+)
+
+/**
+ * A single row from the trending_recipes table.
+ */
+@Serializable
+data class TrendingRecipeRow(
+    @SerialName("recipe_id") val recipeId: String = "",
+    val title: String = "",
+    @SerialName("image_url") val imageUrl: String? = null,
+    val cuisine: String? = null,
+    val difficulty: String? = null,
+    @SerialName("cook_time_min") val cookTimeMin: Int? = null,
+    @SerialName("recipe_data") val recipeData: ApiRecipe = ApiRecipe(),
+)
+
+/**
  * Response envelope for list endpoints from recipeapi.io.
  * Contains paginated data with links and metadata.
  */

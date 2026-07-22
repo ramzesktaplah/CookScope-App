@@ -15,8 +15,10 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import cookscopeai.com.MainActivity
 import cookscopeai.com.R
+import cookscopeai.com.data.model.Recipe
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Calendar
-import java.util.Random
 
 /**
  * Local scheduled push notifications for CookScope.
@@ -237,7 +239,22 @@ object NotificationService {
     }
 
     private fun postTrending() {
-        val recipe = RecipeData.recipes.randomOrNull() ?: return
+        // Try to fetch today's server-side trending recipes first.
+        // Falls back to the local seed list on any failure.
+        val recipe: Recipe? = runBlocking {
+            withTimeoutOrNull(5_000L) {
+                try {
+                    val service = RecipeDiscoveryService()
+                    val result = service.loadTrendingRecipes()
+                    service.close()
+                    result.getOrNull()?.randomOrNull()
+                } catch (_: Exception) {
+                    null
+                }
+            }
+        } ?: RecipeData.recipes.randomOrNull()
+
+        if (recipe == null) return
         val contentText = "Today's trending recipe: ${recipe.title} — tap to cook."
         showNotification(
             channelId = CHANNEL_TRENDING,

@@ -49,10 +49,8 @@ export type Database = {
           created_at: string | null
           display_name: string
           id: string
-          onboarding_complete: boolean | null
           plan_type: string
           role: string
-          role_locked: boolean | null
           stars_count: number
           stars_given: number
           updated_at: string | null
@@ -64,10 +62,8 @@ export type Database = {
           created_at?: string | null
           display_name?: string
           id: string
-          onboarding_complete?: boolean | null
           plan_type?: string
           role?: string
-          role_locked?: boolean | null
           stars_count?: number
           stars_given?: number
           updated_at?: string | null
@@ -79,10 +75,8 @@ export type Database = {
           created_at?: string | null
           display_name?: string
           id?: string
-          onboarding_complete?: boolean | null
           plan_type?: string
           role?: string
-          role_locked?: boolean | null
           stars_count?: number
           stars_given?: number
           updated_at?: string | null
@@ -126,6 +120,45 @@ export type Database = {
           recipe_title?: string
           source?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      trending_recipes: {
+        Row: {
+          cook_time_min: number | null
+          created_at: string
+          cuisine: string | null
+          difficulty: string | null
+          for_date: string
+          id: string
+          image_url: string | null
+          recipe_data: Json
+          recipe_id: string
+          title: string
+        }
+        Insert: {
+          cook_time_min?: number | null
+          created_at?: string
+          cuisine?: string | null
+          difficulty?: string | null
+          for_date?: string
+          id?: string
+          image_url?: string | null
+          recipe_data?: Json
+          recipe_id: string
+          title: string
+        }
+        Update: {
+          cook_time_min?: number | null
+          created_at?: string
+          cuisine?: string | null
+          difficulty?: string | null
+          for_date?: string
+          id?: string
+          image_url?: string | null
+          recipe_data?: Json
+          recipe_id?: string
+          title?: string
         }
         Relationships: []
       }
