@@ -82,6 +82,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import coil3.compose.AsyncImage
 import cookscopeai.com.data.DishScanService
+import cookscopeai.com.data.NotificationService
 import cookscopeai.com.data.RecipeData
 import cookscopeai.com.data.ScanUsageManager
 import cookscopeai.com.data.SubscriptionManager
@@ -193,6 +194,9 @@ fun DishScanScreen(
                 onSuccess = {
                     analysisResult = it
                     ScanUsageManager.increment()
+                    NotificationService.recordScanComplete()
+                    NotificationService.showPostScanSuggestion(it.dishName)
+                    NotificationService.markActive()
                 },
                 onFailure = { errorMessage = "Analysis failed. Please try again." }
             )
@@ -217,6 +221,9 @@ fun DishScanScreen(
                             RecipeData.addRecipe(recipe)
                             UserManager.toggleSavedRecipe(recipe.id)
                             isSaved = true
+                            NotificationService.recordRecipeSaved()
+                            NotificationService.showRecipeSavedReminder(recipe.title)
+                            NotificationService.markActive()
                         }
                     },
                     onBack = onBack,

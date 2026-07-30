@@ -57,6 +57,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import cookscopeai.com.data.NotificationService
 import cookscopeai.com.data.RecipeData
 import cookscopeai.com.data.UserManager
 import cookscopeai.com.ui.components.CookScopeTopLogo

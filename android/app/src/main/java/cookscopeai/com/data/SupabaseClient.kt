@@ -89,4 +89,20 @@ object SupabaseClient {
         val content: String = "",
         @SerialName("created_at") val createdAt: String? = null,
     )
+
+    @Serializable
+    data class NotificationPrefsDto(
+        val id: String? = null,
+        @SerialName("user_id") val userId: String = "",
+        @SerialName("popular_recipe") val popularRecipe: Boolean = true,
+        @SerialName("mealtime") val mealtime: Boolean = true,
+        @SerialName("scan_ai") val scanAi: Boolean = true,
+        @SerialName("saved_recipes") val savedRecipes: Boolean = true,
+        @SerialName("engagement") val engagement: Boolean = true,
+        @SerialName("achievements") val achievements: Boolean = true,
+        @SerialName("trending") val trending: Boolean = true,
+        @SerialName("premium") val premium: Boolean = true,
+        @SerialName("rate_limit_reset") val rateLimitReset: Boolean = true,
+        @SerialName("updated_at") val updatedAt: String? = null,
+    )
 }

@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.LOCKED_BOOT_COMPLETED" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
@@ -42,9 +43,14 @@
             android:name=".data.NotificationReceiver"
             android:exported="false">
             <intent-filter>
-                <action android:name="cookscopeai.com.DAILY_TRENDING" />
-                <action android:name="cookscopeai.com.WEEKLY_UPDATE" />
+                <action android:name="cookscopeai.com.POPULAR_RECIPE" />
+                <action android:name="cookscopeai.com.MEALTIME_LUNCH" />
+                <action android:name="cookscopeai.com.MEALTIME_DINNER" />
+                <action android:name="cookscopeai.com.MEALTIME_WEEKEND" />
+                <action android:name="cookscopeai.com.WEEKLY_TRENDING" />
                 <action android:name="cookscopeai.com.RATE_LIMIT_RESET" />
+                <action android:name="cookscopeai.com.INACTIVITY" />
+                <action android:name="cookscopeai.com.TRIGGERED" />
             </intent-filter>
         </receiver>
         <provider

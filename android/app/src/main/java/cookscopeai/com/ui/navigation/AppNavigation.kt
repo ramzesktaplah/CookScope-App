@@ -28,6 +28,7 @@ import cookscopeai.com.ui.screens.DishScanScreen
 import cookscopeai.com.ui.screens.HomeScreen
 import cookscopeai.com.ui.screens.IngredientScanScreen
 import cookscopeai.com.ui.screens.LoginScreen
+import cookscopeai.com.ui.screens.NotificationSettingsScreen
 import cookscopeai.com.ui.screens.OnboardingGreetingScreen
 import cookscopeai.com.ui.screens.OnboardingNotificationScreen
 import cookscopeai.com.ui.screens.OnboardingPreferenceAllergiesScreen
@@ -78,6 +79,14 @@ fun AppNavigation() {
     val mainRoutes = listOf("home", "scan", "chat", "create", "saved")
     val showBottomBar = currentRoute in mainRoutes
     val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Mark the user as active whenever they navigate between main routes so
+    // the inactivity re-engagement notifications are accurate.
+    LaunchedEffect(currentRoute) {
+        if (currentRoute in mainRoutes) {
+            cookscopeai.com.data.NotificationService.markActive()
+        }
+    }
 
     // Determine the start destination based on auth + entry point + onboarding state.
     val startDestination: String = when (val s = sessionStatus) {
@@ -349,6 +358,7 @@ fun AppNavigation() {
                     onBack = { navController.popBackStack() },
                     onPreferences = { navController.navigate("preferences") },
                     onSavedRecipes = { navController.navigate("saved_recipes") },
+                    onNotifications = { navController.navigate("notification_settings") },
                     onUpgrade = { navController.navigate("paywall") },
                     onSignOut = {
                         scope.launch { AuthManager.signOut() }
@@ -360,6 +370,11 @@ fun AppNavigation() {
             }
             composable("preferences") {
                 PreferencesScreen(
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable("notification_settings") {
+                NotificationSettingsScreen(
                     onBack = { navController.popBackStack() },
                 )
             }

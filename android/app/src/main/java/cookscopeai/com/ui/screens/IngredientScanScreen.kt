@@ -77,6 +77,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import coil3.compose.AsyncImage
 import cookscopeai.com.data.IngredientScanService
+import cookscopeai.com.data.NotificationService
 import cookscopeai.com.data.RecipeData
 import cookscopeai.com.data.RecipeGenerationService
 import cookscopeai.com.data.ScanUsageManager
@@ -200,6 +201,9 @@ fun IngredientScanScreen(
                         limit = 6,
                     )
                     ScanUsageManager.increment()
+                    NotificationService.recordScanComplete()
+                    NotificationService.showPostScanSuggestion(null)
+                    NotificationService.markActive()
                 },
                 onFailure = { errorMessage = "Could not identify ingredients. Please try a clearer photo." }
             )

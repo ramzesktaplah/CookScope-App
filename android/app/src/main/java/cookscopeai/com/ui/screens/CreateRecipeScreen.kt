@@ -59,6 +59,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cookscopeai.com.data.NotificationService
 import cookscopeai.com.data.RecipeData
 import cookscopeai.com.data.RecipeGenerationService
 import cookscopeai.com.data.RecipeGenerationUsageManager
@@ -297,6 +298,8 @@ fun CreateRecipeScreen(
                                     onSuccess = { recipe ->
                                         RecipeGenerationUsageManager.increment()
                                         RecipeData.addRecipe(recipe)
+                                        NotificationService.maybeFireFirstRecipeAchievement()
+                                        NotificationService.markActive()
                                         onRecipeGenerated(recipe.id)
                                     },
                                     onFailure = { generateError = it.message ?: "Generation failed" }
@@ -354,6 +357,8 @@ fun CreateRecipeScreen(
                                     onSuccess = { recipe ->
                                         RecipeGenerationUsageManager.increment()
                                         RecipeData.addRecipe(recipe)
+                                        NotificationService.maybeFireFirstRecipeAchievement()
+                                        NotificationService.markActive()
                                         onRecipeGenerated(recipe.id)
                                     },
                                     onFailure = { generateError = it.message ?: "Generation failed" }

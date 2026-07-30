@@ -53,6 +53,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import cookscopeai.com.data.NotificationService
 import cookscopeai.com.data.RecipeData
 import cookscopeai.com.data.RecipeDiscoveryService
 import cookscopeai.com.data.RecipeShareManager
@@ -180,6 +181,11 @@ fun RecipeDetailScreen(
                             onClick = {
                                 UserManager.toggleSavedRecipe(r.id)
                                 isSaved = !isSaved
+                                if (isSaved) {
+                                    NotificationService.recordRecipeSaved()
+                                    NotificationService.showRecipeSavedReminder(r.title)
+                                    NotificationService.markActive()
+                                }
                             },
                             modifier = Modifier
                                 .size(40.dp)

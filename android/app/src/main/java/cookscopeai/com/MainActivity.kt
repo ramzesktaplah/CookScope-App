@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import cookscopeai.com.data.AuthManager
 import cookscopeai.com.data.ChatHistoryManager
 import cookscopeai.com.data.ChatUsageManager
+import cookscopeai.com.data.NotificationPreferencesManager
 import cookscopeai.com.data.NotificationService
 import cookscopeai.com.data.RecipeGenerationUsageManager
 import cookscopeai.com.data.SavedItemLimitManager
@@ -69,6 +70,7 @@ class MainActivity : ComponentActivity() {
         RecipeGenerationUsageManager.initialize(this)
         SearchUsageManager.initialize(this)
         SavedItemLimitManager.initialize(this)
+        NotificationPreferencesManager.initialize(this)
         NotificationService.initialize(this)
 
         setContent {

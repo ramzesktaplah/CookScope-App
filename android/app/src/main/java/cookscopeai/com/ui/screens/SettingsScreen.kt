@@ -60,6 +60,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onPreferences: () -> Unit,
     onSavedRecipes: () -> Unit,
+    onNotifications: () -> Unit,
     onUpgrade: () -> Unit,
     onSignOut: () -> Unit = {},
     onTerms: () -> Unit = {},
@@ -121,7 +122,7 @@ fun SettingsScreen(
                 icon = Icons.Default.Notifications,
                 title = "Notifications",
                 subtitle = "Push alerts, recipe updates, new content",
-                onClick = { NotificationService.openAppNotificationSettings(context) },
+                onClick = onNotifications,
             )
         }
 
