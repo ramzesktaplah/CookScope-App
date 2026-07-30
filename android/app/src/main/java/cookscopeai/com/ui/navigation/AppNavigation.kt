@@ -33,6 +33,7 @@ import cookscopeai.com.ui.screens.OnboardingNotificationScreen
 import cookscopeai.com.ui.screens.OnboardingPreferenceAllergiesScreen
 import cookscopeai.com.ui.screens.OnboardingPreferenceCuisinesScreen
 import cookscopeai.com.ui.screens.OnboardingPreferenceDietScreen
+import cookscopeai.com.ui.screens.ScanSelectionScreen
 import cookscopeai.com.ui.screens.OnboardingPreferenceSkillScreen
 import cookscopeai.com.ui.screens.OnboardingSettingPreferencesScreen
 import cookscopeai.com.ui.screens.PaywallScreen
@@ -285,6 +286,12 @@ fun AppNavigation() {
                 )
             }
             composable("scan") {
+                ScanSelectionScreen(
+                    onScanDish = { navController.navigate("scan_dish") },
+                    onScanIngredients = { navController.navigate("scan_ingredients") },
+                )
+            }
+            composable("scan_ingredients") {
                 IngredientScanScreen(
                     onBack = { navController.popBackStack() },
                     onRecipeClick = { id -> navController.navigate("recipe/$id") },
