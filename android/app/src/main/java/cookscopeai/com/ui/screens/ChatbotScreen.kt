@@ -29,20 +29,28 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.LocalDining
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.WineBar
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -70,8 +78,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -85,7 +98,6 @@ import cookscopeai.com.data.ChatUsageManager
 import cookscopeai.com.data.SubscriptionManager
 import cookscopeai.com.ui.components.CookScopeTopLogo
 import cookscopeai.com.ui.components.ShimmerDots
-import cookscopeai.com.ui.components.SmoothInput
 import cookscopeai.com.ui.theme.GoldDeep
 import cookscopeai.com.ui.theme.GoldLight
 import cookscopeai.com.ui.theme.GoldPrimary
@@ -104,19 +116,17 @@ private data class ChatBubble(
     val hasImage: Boolean = false,
 )
 
-private val allSuggestionPool = listOf(
-    "What can I make with chicken and rice?",
-    "Substitute for eggs in baking",
-    "Easy 15-minute dinner ideas",
-    "How to perfectly sear a steak?",
-    "Healthy vegetarian meal prep ideas",
-    "Best herbs for tomato sauce",
-    "How to make homemade pasta?",
-    "What wine pairs with salmon?",
-    "Quick high-protein breakfast",
-    "How to fix salty soup?",
-    "Ideas for leftover rice",
-    "Simple sauce for grilled fish",
+private data class ChatSuggestion(
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val title: String,
+    val prompt: String,
+)
+
+private val chatSuggestions = listOf(
+    ChatSuggestion(Icons.Default.AutoAwesome, "Generate a recipe", "Generate a recipe with chicken, rice, and vegetables"),
+    ChatSuggestion(Icons.Default.Lightbulb, "Ingredient substitute", "What can I substitute for eggs in baking?"),
+    ChatSuggestion(Icons.Default.LocalDining, "Meal ideas", "Easy 15-minute dinner ideas for tonight"),
+    ChatSuggestion(Icons.Default.WineBar, "Wine pairing", "What wine pairs best with grilled salmon?"),
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -146,7 +156,7 @@ fun ChatbotScreen(
     val chatService = remember { ChatService() }
     val listState = rememberLazyListState()
 
-    var currentSuggestions by remember { mutableStateOf(allSuggestionPool.shuffled().take(4)) }
+    var currentSuggestions by remember { mutableStateOf(chatSuggestions.shuffled()) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
@@ -162,7 +172,7 @@ fun ChatbotScreen(
     }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        currentSuggestions = allSuggestionPool.shuffled().take(4)
+        currentSuggestions = chatSuggestions.shuffled()
         refreshRateLimit()
     }
 
@@ -335,7 +345,7 @@ fun ChatbotScreen(
         ChatHistoryManager.deleteConversation(id)
     }
 
-    val tierLabel = if (isPremium) "Premium · CS Donna AI" else "Free · CS Myth AI"
+    val tierLabel = if (isPremium) "Premium · CookScope AI" else "Free · CookScope AI"
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -368,13 +378,11 @@ fun ChatbotScreen(
                 modifier = Modifier
                     .fillMaxSize(),
             ) {
-                // Upper-center brand logo
-                CookScopeTopLogo()
-
-                // Two-line top-left bar: history + new chat
+                // ChatGPT-style top bar: hamburger menu + Get Plus chip
                 ChatTopBar(
+                    isPremium = isPremium,
                     onOpenHistory = { scope.launch { drawerState.open() } },
-                    onNewChat = ::startNewChat,
+                    onUpgrade = onUpgrade,
                 )
 
                 // Rate-limit banner above the input area
@@ -455,19 +463,11 @@ fun ChatbotScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
                     if (messages.size <= 1 && !isLoading) {
-                        Text(
-                            "Try asking:",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 8.dp),
+                        SuggestionCards(
+                            suggestions = currentSuggestions,
+                            onSuggestionClick = { sendMessage(it) },
                         )
-                        currentSuggestions.forEach { chip ->
-                            SuggestionChip(
-                                text = chip,
-                                onClick = { sendMessage(chip) },
-                            )
-                            Spacer(Modifier.height(8.dp))
-                        }
+                        Spacer(Modifier.height(12.dp))
                     }
 
                     if (photoDeclined) {
@@ -487,12 +487,11 @@ fun ChatbotScreen(
                         Spacer(Modifier.height(8.dp))
                     }
 
-                    SmoothInput(
+                    ChatInputBar(
                         onSend = { sendMessage(it, pendingImageUri) },
-                        placeholder = "Ask about recipes, techniques...",
+                        placeholder = "Ask CookScope anything...",
                         isLoading = isLoading,
                         onAttach = { photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                        tierLabel = tierLabel,
                     )
                 }
             }
@@ -502,14 +501,16 @@ fun ChatbotScreen(
 
 @Composable
 private fun ChatTopBar(
+    isPremium: Boolean,
     onOpenHistory: () -> Unit,
-    onNewChat: () -> Unit,
+    onUpgrade: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 4.dp, start = 12.dp, end = 12.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         IconButton(
             onClick = onOpenHistory,
@@ -522,17 +523,34 @@ private fun ChatTopBar(
                 modifier = Modifier.size(28.dp),
             )
         }
-        Spacer(Modifier.width(4.dp))
-        IconButton(
-            onClick = onNewChat,
-            modifier = Modifier.size(44.dp),
-        ) {
-            Icon(
-                Icons.Default.Edit,
-                contentDescription = "New chat",
-                tint = GoldPrimary,
-                modifier = Modifier.size(24.dp),
-            )
+
+        if (!isPremium) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(GoldPrimary, GoldDeep)
+                        )
+                    )
+                    .clickable { onUpgrade() }
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    tint = Color.Black,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "Get Plus",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color.Black,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
     }
 }
@@ -1005,32 +1023,166 @@ private fun ShimmerLine(
 }
 
 @Composable
-private fun SuggestionChip(
-    text: String,
-    onClick: () -> Unit,
+private fun SuggestionCards(
+    suggestions: List<ChatSuggestion>,
+    onSuggestionClick: (String) -> Unit,
 ) {
-    Row(
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        suggestions.forEach { suggestion ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(
+                        MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)
+                    )
+                    .clickable { onSuggestionClick(suggestion.prompt) }
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = suggestion.icon,
+                    contentDescription = null,
+                    tint = GoldPrimary,
+                    modifier = Modifier.size(22.dp),
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    suggestion.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * ChatGPT-style input bar: rounded pill with a plus/attach button on the left,
+ * placeholder text, and a prominent circular send button on the right.
+ */
+@Composable
+private fun ChatInputBar(
+    onSend: (String) -> Unit,
+    placeholder: String = "Ask CookScope anything...",
+    isLoading: Boolean = false,
+    onAttach: () -> Unit = {},
+) {
+    var text by remember { mutableStateOf("") }
+    var isFocused by remember { mutableStateOf(false) }
+
+    fun submit() {
+        val trimmed = text.trim()
+        if (trimmed.isNotBlank() && !isLoading) {
+            onSend(trimmed)
+            text = ""
+        }
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(
-                MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)
+            .clip(RoundedCornerShape(28.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                shape = RoundedCornerShape(28.dp),
             )
-            .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 8.dp, vertical = 6.dp),
     ) {
-        Icon(
-            Icons.Default.Restaurant,
-            contentDescription = null,
-            tint = GoldPrimary.copy(alpha = 0.6f),
-            modifier = Modifier.size(18.dp),
-        )
-        Spacer(Modifier.width(10.dp))
-        Text(
-            text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(
+                onClick = onAttach,
+                modifier = Modifier.size(40.dp),
+            ) {
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = "Attach photo",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(26.dp),
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 4.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                androidx.compose.foundation.text.BasicTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onFocusChanged { isFocused = it.isFocused },
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        color = MaterialTheme.colorScheme.onBackground,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Normal,
+                        lineHeight = 22.sp,
+                    ),
+                    cursorBrush = androidx.compose.ui.graphics.SolidColor(GoldPrimary),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = { submit() }),
+                    singleLine = false,
+                    maxLines = 4,
+                    decorationBox = { innerTextField ->
+                        Box {
+                            if (text.isEmpty() && !isFocused) {
+                                Text(
+                                    placeholder,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                )
+                            }
+                            innerTextField()
+                        }
+                    }
+                )
+            }
+
+            IconButton(
+                onClick = { submit() },
+                enabled = text.isNotBlank() && !isLoading,
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(21.dp))
+                    .background(
+                        if (text.isNotBlank() && !isLoading) {
+                            Brush.horizontalGradient(listOf(GoldPrimary, GoldDeep))
+                        } else {
+                            Brush.horizontalGradient(
+                                listOf(
+                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                                )
+                            )
+                        }
+                    ),
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(20.dp),
+                    )
+                } else {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Send,
+                        contentDescription = "Send",
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
+        }
     }
 }

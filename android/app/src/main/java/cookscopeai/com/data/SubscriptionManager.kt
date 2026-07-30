@@ -3,6 +3,7 @@ package cookscopeai.com.data
 import android.app.Activity
 import android.app.Application
 import cookscopeai.com.Config
+import com.revenuecat.purchases.Package
 import com.revenuecat.purchases.Purchases
 import com.revenuecat.purchases.PurchasesAreCompletedBy
 import com.revenuecat.purchases.PurchasesConfiguration
@@ -22,12 +23,15 @@ import kotlinx.coroutines.launch
 /**
  * Manages RevenueCat subscription state for CookScope Premium.
  * Tracks entitlement status, purchase flow, and restoration.
+ *
+ * RevenueCat packages are discovered dynamically from the current offering
+ * rather than hardcoded by package key. This avoids breakage when the
+ * dashboard uses custom package keys (e.g. "monthly"/"yearly" instead of
+ * "$rc_monthly"/"$rc_annual").
  */
 object SubscriptionManager {
 
     private const val ENTITLEMENT_ID = "CookScope Premium"
-    private const val PACKAGE_MONTHLY = "\$rc_monthly"
-    private const val PACKAGE_ANNUAL = "\$rc_annual"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -40,11 +44,13 @@ object SubscriptionManager {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
-    private val _monthlyPrice = MutableStateFlow<String?>(null)
-    val monthlyPrice: StateFlow<String?> = _monthlyPrice.asStateFlow()
+    /** All packages in the current offering, ordered by the dashboard. */
+    private val _availablePackages = MutableStateFlow<List<Package>>(emptyList())
+    val availablePackages: StateFlow<List<Package>> = _availablePackages.asStateFlow()
 
-    private val _yearlyPrice = MutableStateFlow<String?>(null)
-    val yearlyPrice: StateFlow<String?> = _yearlyPrice.asStateFlow()
+    /** Whether RevenueCat returned an offering with at least one package. */
+    private val _hasStoreProducts = MutableStateFlow(false)
+    val hasStoreProducts: StateFlow<Boolean> = _hasStoreProducts.asStateFlow()
 
     /**
      * Initialize RevenueCat SDK. Call from Activity.onCreate.
@@ -68,7 +74,7 @@ object SubscriptionManager {
                 .build()
         )
         refreshEntitlementStatus()
-        fetchPrices()
+        fetchOfferings()
     }
 
     /**
@@ -95,34 +101,50 @@ object SubscriptionManager {
     }
 
     /**
-     * Fetch formatted prices from RevenueCat offerings.
+     * Fetch the current offering and cache the available packages.
+     * Call this on startup and again before a purchase if products are missing.
      */
-    private fun fetchPrices() {
+    fun fetchOfferings() {
         scope.launch {
             try {
                 val offerings = Purchases.sharedInstance.awaitOfferings()
-                _monthlyPrice.value = offerings.current
-                    ?.getPackage(PACKAGE_MONTHLY)?.product?.price?.formatted
-                _yearlyPrice.value = offerings.current
-                    ?.getPackage(PACKAGE_ANNUAL)?.product?.price?.formatted
-            } catch (_: Exception) {
-                // Fallback to hardcoded display prices
+                val current = offerings.current
+                val packages = current?.availablePackages ?: emptyList()
+                _availablePackages.value = packages
+                _hasStoreProducts.value = packages.isNotEmpty()
+                if (packages.isEmpty()) {
+                    _error.value = "No subscription products found. Pull-to-refresh or try again."
+                }
+            } catch (e: Exception) {
+                _availablePackages.value = emptyList()
+                _hasStoreProducts.value = false
+                _error.value = "Store not available: ${e.localizedMessage ?: "Unknown error"}"
             }
         }
     }
 
     /**
-     * Purchase a subscription by package type.
+     * Purchase a subscription by selecting the package at the given index.
+     * The index maps to the order returned by RevenueCat's current offering.
+     * Typically 0 = monthly, 1 = annual, but the dashboard controls ordering.
      */
-    suspend fun purchaseSubscription(activity: Activity, isAnnual: Boolean): Boolean {
+    suspend fun purchaseSubscription(activity: Activity, packageIndex: Int): Boolean {
         _isLoading.value = true
         _error.value = null
         return try {
-            val offerings = Purchases.sharedInstance.awaitOfferings()
-            val packageKey = if (isAnnual) PACKAGE_ANNUAL else PACKAGE_MONTHLY
-            val pkg = offerings.current?.getPackage(packageKey)
-                ?: offerings.current?.availablePackages?.firstOrNull()
-                ?: throw IllegalStateException("No packages available")
+            var packages = _availablePackages.value
+            if (packages.isEmpty()) {
+                // Try to refresh offerings once before giving up.
+                val offerings = Purchases.sharedInstance.awaitOfferings()
+                val refreshed = offerings.current?.availablePackages ?: emptyList()
+                _availablePackages.value = refreshed
+                _hasStoreProducts.value = refreshed.isNotEmpty()
+                packages = refreshed
+            }
+
+            val pkg = packages.getOrNull(packageIndex)
+                ?: packages.firstOrNull()
+                ?: throw IllegalStateException("No subscription products available")
 
             val params = PurchaseParams.Builder(activity, pkg).build()
             val result = Purchases.sharedInstance.awaitPurchase(params)
@@ -136,7 +158,7 @@ object SubscriptionManager {
             _isLoading.value = false
             _isPremium.value
         } catch (e: Exception) {
-            _error.value = "Purchase failed. Please try again."
+            _error.value = e.localizedMessage ?: "Purchase failed. Please try again."
             _isLoading.value = false
             false
         }
@@ -160,7 +182,7 @@ object SubscriptionManager {
             _isLoading.value = false
             _isPremium.value
         } catch (e: Exception) {
-            _error.value = "Restore failed. Please try again."
+            _error.value = e.localizedMessage ?: "Restore failed. Please try again."
             _isLoading.value = false
             false
         }

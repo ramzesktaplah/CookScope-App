@@ -33,7 +33,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -56,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.revenuecat.purchases.Package
 import cookscopeai.com.R
 import cookscopeai.com.data.SubscriptionManager
 import cookscopeai.com.ui.theme.GoldPrimary
@@ -65,6 +65,9 @@ import kotlinx.coroutines.launch
  * Paywall screen — shown as the last step of onboarding and from the
  * Settings upgrade path. Offers monthly and yearly subscriptions.
  * Uses the regular app theme (light or dark).
+ *
+ * The pricing options are built dynamically from RevenueCat's current offering
+ * so they match the configured dashboard packages and prices exactly.
  */
 @Composable
 fun PaywallScreen(
@@ -90,9 +93,10 @@ private fun PaywallContent(
     val isPremium by SubscriptionManager.isPremium.collectAsState()
     val isLoading by SubscriptionManager.isLoading.collectAsState()
     val error by SubscriptionManager.error.collectAsState()
-    val monthlyPrice by SubscriptionManager.monthlyPrice.collectAsState()
-    val yearlyPrice by SubscriptionManager.yearlyPrice.collectAsState()
-    var selectedAnnual by remember { mutableStateOf(true) }
+    val availablePackages by SubscriptionManager.availablePackages.collectAsState()
+    val hasStoreProducts by SubscriptionManager.hasStoreProducts.collectAsState()
+
+    var selectedIndex by remember { mutableStateOf(0) }
     var purchaseAttempted by remember { mutableStateOf(false) }
 
     // Navigate away when premium becomes active after a purchase
@@ -102,8 +106,14 @@ private fun PaywallContent(
         }
     }
 
-    val monthlyDisplay = monthlyPrice ?: "$4.99"
-    val yearlyDisplay = yearlyPrice ?: "$49.99"
+    // Default to the annual package if available, otherwise the first package.
+    LaunchedEffect(availablePackages) {
+        if (availablePackages.isNotEmpty()) {
+            selectedIndex = availablePackages.indexOfFirst {
+                it.packageType == com.revenuecat.purchases.PackageType.ANNUAL
+            }.coerceAtLeast(0)
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -178,33 +188,37 @@ private fun PaywallContent(
                 )
             }
 
-            // Pricing options — Monthly vs Yearly
+            // Pricing options — built from RevenueCat packages
             item {
                 Spacer(Modifier.height(28.dp))
-                Column(
-                    modifier = Modifier.padding(horizontal = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    // Yearly option — selected by default
-                    PricingOption(
-                        title = "Yearly",
-                        price = yearlyDisplay,
-                        period = "/year",
-                        badge = "SAVE 17%",
-                        subtitle = "~$4.17/month • 10% off",
-                        isSelected = selectedAnnual,
-                        onClick = { selectedAnnual = true },
-                    )
-                    // Monthly option
-                    PricingOption(
-                        title = "Monthly",
-                        price = monthlyDisplay,
-                        period = "/month",
-                        badge = null,
-                        subtitle = "Cancel anytime",
-                        isSelected = !selectedAnnual,
-                        onClick = { selectedAnnual = false },
-                    )
+                if (availablePackages.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        availablePackages.forEachIndexed { index, pkg ->
+                            val isAnnual = pkg.packageType == com.revenuecat.purchases.PackageType.ANNUAL
+                            PricingOption(
+                                title = pkg.product.title.replace(" (CookScope)", "").replace("CookScope", "").trim(),
+                                price = pkg.product.price.formatted,
+                                period = if (isAnnual) "/year" else "/month",
+                                badge = if (isAnnual) "BEST VALUE" else null,
+                                subtitle = if (isAnnual) "Save with yearly billing" else "Cancel anytime",
+                                isSelected = selectedIndex == index,
+                                onClick = { selectedIndex = index },
+                            )
+                        }
+                    }
+                } else if (hasStoreProducts) {
+                    // Loading state while packages resolve
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(40.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(color = GoldPrimary, strokeWidth = 2.dp)
+                    }
                 }
             }
 
@@ -250,13 +264,14 @@ private fun PaywallContent(
                     modifier = Modifier.padding(horizontal = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
+                    val selectedPackage = availablePackages.getOrNull(selectedIndex)
                     Button(
                         onClick = {
                             purchaseAttempted = true
                             scope.launch {
                                 val activity = context as? android.app.Activity
                                 if (activity != null) {
-                                    SubscriptionManager.purchaseSubscription(activity, isAnnual = selectedAnnual)
+                                    SubscriptionManager.purchaseSubscription(activity, selectedIndex)
                                 }
                             }
                         },
@@ -268,7 +283,7 @@ private fun PaywallContent(
                             containerColor = GoldPrimary,
                             contentColor = Color.White,
                         ),
-                        enabled = !isLoading && !isPremium,
+                        enabled = !isLoading && !isPremium && selectedPackage != null,
                     ) {
                         if (isLoading) {
                             CircularProgressIndicator(
@@ -280,13 +295,27 @@ private fun PaywallContent(
                             Icon(Icons.Default.Check, contentDescription = null, tint = Color.White)
                             Spacer(Modifier.width(8.dp))
                             Text("Premium Active", fontWeight = FontWeight.Bold)
+                        } else if (selectedPackage == null) {
+                            Text("Store unavailable", fontWeight = FontWeight.Bold)
                         } else {
-                            val planLabel = if (selectedAnnual) "Yearly" else "Monthly"
-                            val priceLabel = if (selectedAnnual) yearlyDisplay else monthlyDisplay
                             Text(
-                                "Subscribe $planLabel — $priceLabel",
+                                "Subscribe — ${selectedPackage.product.price.formatted}",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+
+                    // Refresh offerings if products failed to load
+                    if (availablePackages.isEmpty() && !isLoading) {
+                        TextButton(
+                            onClick = { SubscriptionManager.fetchOfferings() },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                "Reload store products",
+                                color = GoldPrimary,
+                                fontWeight = FontWeight.SemiBold,
                             )
                         }
                     }
@@ -457,32 +486,30 @@ private fun PremiumFeature(
     ) {
         Box(
             modifier = Modifier
-                .size(32.dp)
+                .size(40.dp)
                 .clip(CircleShape)
-                .background(GoldPrimary.copy(alpha = 0.15f)),
+                .background(GoldPrimary.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 icon,
                 contentDescription = null,
                 tint = GoldPrimary,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(22.dp),
             )
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(14.dp))
         Column {
             Text(
                 title,
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onBackground,
                 fontWeight = FontWeight.SemiBold,
             )
-            Spacer(Modifier.height(2.dp))
             Text(
                 description,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                lineHeight = 18.sp,
             )
         }
     }

@@ -1,6 +1,7 @@
 package cookscopeai.com.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,14 +17,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.CircularProgressIndicator
@@ -42,7 +45,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import java.util.Calendar
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,17 +59,18 @@ import coil3.compose.AsyncImage
 import cookscopeai.com.data.RecipeData
 import cookscopeai.com.data.RecipeDiscoveryService
 import cookscopeai.com.data.SearchUsageManager
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import cookscopeai.com.data.SubscriptionManager
-import cookscopeai.com.data.model.Cuisine
 import cookscopeai.com.data.model.Recipe
-import cookscopeai.com.ui.components.CookScopeTopLogo
-import cookscopeai.com.ui.components.RecipeCard
-import cookscopeai.com.ui.theme.GoldDeep
-import cookscopeai.com.ui.theme.GoldLight
 import cookscopeai.com.ui.theme.GoldPrimary
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/**
+ * Discover screen — renamed from Home. Shows a search bar, category chips
+ * (All, Breakfast, Lunch, Dinner, Desserts), and a two-column grid of popular
+ * recipes. Search rate limits and search persistence are preserved.
+ */
 @Composable
 fun HomeScreen(
     onRecipeClick: (String) -> Unit,
@@ -79,8 +82,7 @@ fun HomeScreen(
     val scope = rememberCoroutineScope()
     val isPremium by SubscriptionManager.isPremium.collectAsState()
     var isLoading by remember { mutableStateOf(true) }
-    var featuredRecipes by remember { mutableStateOf<List<Recipe>>(emptyList()) }
-    var trendingRecipes by remember { mutableStateOf<List<Recipe>>(emptyList()) }
+    var popularRecipes by remember { mutableStateOf<List<Recipe>>(emptyList()) }
     // Use rememberSaveable so search state survives navigation to recipe detail and back.
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var isSearching by rememberSaveable { mutableStateOf(false) }
@@ -92,217 +94,143 @@ fun HomeScreen(
     var searchResults by remember(searchResultIds) {
         mutableStateOf(searchResultIds.mapNotNull { RecipeData.byId(it) })
     }
+    var selectedCategory by rememberSaveable { mutableStateOf("All") }
     var showSearchLimitDialog by remember { mutableStateOf(false) }
 
-    // Load featured recipes and today's server-side trending recipes.
-    // Trending falls back to the local seed list if the server call fails.
+    val categories = listOf("All", "Breakfast", "Lunch", "Dinner", "Desserts")
+
+    // Load popular recipes once on entry.
     LaunchedEffect(Unit) {
         isLoading = true
-        val featuredResult = discoveryService.loadRandomRecipes(6)
-        featuredResult.fold(
+        val result = discoveryService.loadRandomRecipes(20)
+        result.fold(
             onSuccess = { recipes ->
-                if (recipes.isNotEmpty()) {
-                    featuredRecipes = recipes
-                }
+                popularRecipes = if (recipes.isNotEmpty()) recipes else RecipeData.featured
             },
             onFailure = {
-                featuredRecipes = RecipeData.featured
-            }
-        )
-
-        val trendingResult = discoveryService.loadTrendingRecipes()
-        trendingResult.fold(
-            onSuccess = { recipes ->
-                if (recipes.isNotEmpty()) {
-                    trendingRecipes = recipes.take(10)
-                } else {
-                    trendingRecipes = RecipeData.trending.take(10)
-                }
-            },
-            onFailure = {
-                trendingRecipes = RecipeData.trending.take(10)
+                popularRecipes = RecipeData.featured
             }
         )
         isLoading = false
     }
 
-    LazyColumn(
+    fun performSearch() {
+        if (searchQuery.isBlank()) return
+        if (!SearchUsageManager.canSearch()) {
+            showSearchLimitDialog = true
+            return
+        }
+        isSearching = true
+        hasSearched = true
+        selectedCategory = "All"
+        scope.launch {
+            val result = discoveryService.searchRecipes(searchQuery)
+            isSearching = false
+            result.fold(
+                onSuccess = { recipes ->
+                    searchResultIds = recipes.map { it.id }
+                    searchResults = recipes
+                    SearchUsageManager.increment()
+                },
+                onFailure = { searchResults = emptyList() }
+            )
+        }
+    }
+
+    fun clearSearch() {
+        searchQuery = ""
+        searchResults = emptyList()
+        searchResultIds = emptyList()
+        hasSearched = false
+    }
+
+    val filteredPopular = remember(selectedCategory, popularRecipes) {
+        if (selectedCategory == "All") {
+            popularRecipes
+        } else {
+            popularRecipes.filter { recipe ->
+                recipe.tags.any { it.equals(selectedCategory, ignoreCase = true) } ||
+                    recipe.cuisine.equals(selectedCategory, ignoreCase = true)
+            }
+        }
+    }
+
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(bottom = 24.dp),
     ) {
-        // Centered brand logo at the top of the home feed
-        item {
-            CookScopeTopLogo()
-        }
+        // Static header + search + chips (not inside the scrollable grid)
+        DiscoverHeader(
+            searchQuery = searchQuery,
+            onSearchChange = { searchQuery = it },
+            onSearch = { performSearch() },
+            onClearSearch = { clearSearch() },
+        )
 
-        // Header with user greeting + search bar
-        item {
-            HeaderSection(
+        if (hasSearched) {
+            SearchResultsSection(
+                isSearching = isSearching,
+                searchResults = searchResults,
                 searchQuery = searchQuery,
-                onSearchChange = { searchQuery = it },
-                onSearch = {
-                    if (searchQuery.isNotBlank()) {
-                        // Check search rate limit before firing.
-                        if (!SearchUsageManager.canSearch()) {
-                            showSearchLimitDialog = true
-                            return@HeaderSection
-                        }
-                        isSearching = true
-                        hasSearched = true
-                        scope.launch {
-                            val result = discoveryService.searchRecipes(searchQuery)
-                            isSearching = false
-                            result.fold(
-                                onSuccess = { recipes ->
-                                    searchResultIds = recipes.map { it.id }
-                                    searchResults = recipes
-                                    SearchUsageManager.increment()
-                                },
-                                onFailure = { searchResults = emptyList() }
+                onClearSearch = { clearSearch() },
+                onRecipeClick = onRecipeClick,
+            )
+        } else {
+            CategoryChips(
+                categories = categories,
+                selectedCategory = selectedCategory,
+                onCategorySelected = { selectedCategory = it },
+            )
+
+            if (isLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(40.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(color = GoldPrimary, strokeWidth = 3.dp)
+                }
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 100.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "Popular Recipes",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = MaterialTheme.colorScheme.onBackground,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                                "View all",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = GoldPrimary,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.clickable { onExploreClick() },
                             )
                         }
                     }
-                },
-                onClearSearch = {
-                    searchQuery = ""
-                    searchResults = emptyList()
-                    searchResultIds = emptyList()
-                    hasSearched = false
-                },
-            )
-        }
 
-        // Search results
-        if (hasSearched) {
-            if (isSearching) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(40.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator(color = GoldPrimary, strokeWidth = 3.dp)
-                    }
-                }
-            } else if (searchResults.isNotEmpty()) {
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            "${searchResults.size} results for \"$searchQuery\"",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = GoldPrimary,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        IconButton(onClick = {
-                            searchQuery = ""
-                            searchResults = emptyList()
-                            hasSearched = false
-                        }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Clear", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-                items(searchResults) { recipe ->
-                    SearchResultRow(recipe = recipe, onClick = { onRecipeClick(recipe.id) })
-                }
-            } else {
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(
-                            "No recipes found",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            "Try a different search term",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            "Clear search",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = GoldPrimary,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.clickable {
-                                searchQuery = ""
-                                searchResults = emptyList()
-                                hasSearched = false
-                            },
+                    items(filteredPopular) { recipe ->
+                        DiscoverRecipeCard(
+                            recipe = recipe,
+                            onClick = { onRecipeClick(recipe.id) },
                         )
                     }
-                }
-            }
-        } else {
-            // Hero CTA card — Scan Your Dish
-            item { HeroCtaSection(onScanClick) }
-
-            // Featured Recipe — 6 random recipes
-            item {
-                SectionHeader("Featured Recipe", "Fresh picks updated daily")
-            }
-            if (isLoading) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(40.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator(color = GoldPrimary, strokeWidth = 3.dp)
-                    }
-                }
-            } else {
-                item {
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        items(featuredRecipes) { recipe ->
-                            Box(modifier = Modifier.width(280.dp)) {
-                                RecipeCard(
-                                    recipe = recipe,
-                                    onClick = { onRecipeClick(recipe.id) },
-                                    cardHeight = 260,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Cuisine explorer
-            item {
-                Spacer(Modifier.height(28.dp))
-                SectionHeader("Explore by Cuisine", "Thousands of recipes await")
-            }
-            item { CuisineRow(RecipeData.cuisines, onExploreClick) }
-
-            // Trending
-            if (trendingRecipes.isNotEmpty()) {
-                item {
-                    Spacer(Modifier.height(28.dp))
-                    SectionHeader("Trending This Week", "Loved by 100K+ home chefs")
-                }
-                items(trendingRecipes) { recipe ->
-                    TrendingRecipeRow(recipe = recipe, onClick = { onRecipeClick(recipe.id) })
                 }
             }
         }
@@ -337,7 +265,7 @@ fun HomeScreen(
 }
 
 @Composable
-private fun HeaderSection(
+private fun DiscoverHeader(
     searchQuery: String,
     onSearchChange: (String) -> Unit,
     onSearch: () -> Unit,
@@ -347,29 +275,27 @@ private fun HeaderSection(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
-            .padding(top = 56.dp, start = 20.dp, end = 20.dp, bottom = 20.dp)
+            .padding(top = 56.dp, start = 20.dp, end = 20.dp, bottom = 12.dp)
     ) {
-        // User greeting based on time of day
         Text(
-            getTimeGreeting(),
-            style = MaterialTheme.typography.headlineMedium,
+            "Discover Recipes",
+            style = MaterialTheme.typography.headlineLarge,
             color = MaterialTheme.colorScheme.onBackground,
             fontWeight = FontWeight.Bold,
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            "What are we cooking?",
+            "Find your next favorite meal",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.height(20.dp))
-        // Search bar — functional text input
+        Spacer(Modifier.height(18.dp))
         TextField(
             value = searchQuery,
             onValueChange = onSearchChange,
             placeholder = {
                 Text(
-                    "Search recipes, cuisines, ingredients...",
+                    "Search recipes, ingredients, cuisines...",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 )
@@ -379,7 +305,7 @@ private fun HeaderSection(
                     Icons.Default.Search,
                     contentDescription = "Search",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(22.dp),
                 )
             },
             trailingIcon = {
@@ -389,9 +315,16 @@ private fun HeaderSection(
                             Icons.Default.Clear,
                             contentDescription = "Clear",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(20.dp),
                         )
                     }
+                } else {
+                    Icon(
+                        Icons.Default.FilterList,
+                        contentDescription = "Filter",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
                 }
             },
             singleLine = true,
@@ -415,237 +348,207 @@ private fun HeaderSection(
 }
 
 @Composable
-private fun HeroCtaSection(onScanClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 20.dp)
-            .height(120.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(GoldLight, GoldPrimary, GoldDeep)
-                )
-            )
-            .clickable { onScanClick() }
-            .padding(16.dp),
+private fun CategoryChips(
+    categories: List<String>,
+    selectedCategory: String,
+    onCategorySelected: (String) -> Unit,
+) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Column {
-                Icon(
-                    Icons.Default.CameraAlt,
-                    contentDescription = null,
-                    tint = Color.Black,
-                    modifier = Modifier.size(28.dp),
-                )
-                Spacer(Modifier.height(10.dp))
+        items(categories) { category ->
+            val isSelected = category == selectedCategory
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(
+                        if (isSelected) GoldPrimary else MaterialTheme.colorScheme.surface
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = if (isSelected) GoldPrimary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(20.dp),
+                    )
+                    .clickable { onCategorySelected(category) }
+                    .padding(horizontal = 18.dp, vertical = 10.dp),
+            ) {
                 Text(
-                    "Scan Your Dish",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Color.Black,
+                    category,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (isSelected) Color.Black else MaterialTheme.colorScheme.onSurface,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchResultsSection(
+    isSearching: Boolean,
+    searchResults: List<Recipe>,
+    searchQuery: String,
+    onClearSearch: () -> Unit,
+    onRecipeClick: (String) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (isSearching) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(40.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(color = GoldPrimary, strokeWidth = 3.dp)
+            }
+        } else if (searchResults.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "${searchResults.size} results for \"$searchQuery\"",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = GoldPrimary,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    "AI analyzes nutrition, calories & health score",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Black.copy(alpha = 0.7f),
-                )
-            }
-            Icon(
-                Icons.Default.AutoAwesome,
-                contentDescription = null,
-                tint = Color.Black.copy(alpha = 0.25f),
-                modifier = Modifier.size(80.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun SectionHeader(title: String, subtitle: String) {
-    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-        Text(
-            title,
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onBackground,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            subtitle,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun CuisineRow(cuisines: List<Cuisine>, onExploreClick: () -> Unit) {
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        items(cuisines) { cuisine ->
-            Column(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surface)
-                    .clickable { onExploreClick() }
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(cuisine.emoji, style = MaterialTheme.typography.headlineMedium)
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    cuisine.name,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    "Clear",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    cuisine.tagline,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.clickable { onClearSearch() },
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun TrendingRecipeRow(recipe: Recipe, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .clickable { onClick() }
-            .padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AsyncImage(
-            model = recipe.imageUrl,
-            contentDescription = recipe.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(78.dp)
-                .clip(RoundedCornerShape(14.dp)),
-        )
-        Spacer(Modifier.width(14.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                recipe.title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    recipe.cuisine,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = GoldPrimary,
-                    fontWeight = FontWeight.Medium,
-                )
-                Text(
-                    " • ${recipe.cookTimeMin} min",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Default.Star,
-                    contentDescription = null,
-                    tint = GoldPrimary,
-                    modifier = Modifier.size(13.dp),
-                )
-                Spacer(Modifier.width(3.dp))
-                Text(
-                    "${String.format("%.1f", recipe.rating)} (${recipe.reviewCount})",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}
-
-private fun getTimeGreeting(): String {
-    val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-    return when (hour) {
-        in 5..11 -> "Good Morning, Chef"
-        in 12..16 -> "Good Afternoon, Chef"
-        in 17..20 -> "Good Evening, Chef"
-        else -> "Good Night, Chef"
-    }
-}
-
-@Composable
-private fun SearchResultRow(recipe: Recipe, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .clickable { onClick() }
-            .padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AsyncImage(
-            model = recipe.imageUrl,
-            contentDescription = recipe.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(78.dp)
-                .clip(RoundedCornerShape(14.dp)),
-        )
-        Spacer(Modifier.width(14.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                recipe.title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    recipe.cuisine,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = GoldPrimary,
-                    fontWeight = FontWeight.Medium,
-                )
-                if (recipe.cookTimeMin > 0) {
-                    Text(
-                        " • ${recipe.cookTimeMin} min",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 100.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                items(searchResults) { recipe ->
+                    DiscoverRecipeCard(
+                        recipe = recipe,
+                        onClick = { onRecipeClick(recipe.id) },
                     )
                 }
             }
-            Spacer(Modifier.height(4.dp))
-            if (recipe.tags.isNotEmpty()) {
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 Text(
-                    recipe.tags.take(3).joinToString(" • "),
-                    style = MaterialTheme.typography.labelSmall,
+                    "No recipes found",
+                    style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Try a different search term",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Clear search",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = GoldPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clickable { onClearSearch() },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun DiscoverRecipeCard(
+    recipe: Recipe,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable { onClick() }
+            .padding(8.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(140.dp)
+                .clip(RoundedCornerShape(14.dp)),
+        ) {
+            AsyncImage(
+                model = recipe.imageUrl,
+                contentDescription = recipe.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+            // Bookmark icon placeholder
+            Box(
+                modifier = Modifier
+                    .padding(8.dp)
+                    .size(28.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.White.copy(alpha = 0.9f))
+                    .align(Alignment.TopEnd),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Default.Star,
+                    contentDescription = "Save",
+                    tint = GoldPrimary,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            recipe.title,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.Bold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
+        Spacer(Modifier.height(6.dp))
+        Row(
+            modifier = Modifier.padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Default.Star,
+                contentDescription = null,
+                tint = GoldPrimary,
+                modifier = Modifier.size(14.dp),
+            )
+            Spacer(Modifier.width(3.dp))
+            Text(
+                "${String.format("%.1f", recipe.rating)}",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "${recipe.cookTimeMin} mins",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
