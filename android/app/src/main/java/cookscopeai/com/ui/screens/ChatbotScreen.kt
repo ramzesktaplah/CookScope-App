@@ -78,6 +78,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
@@ -155,6 +157,8 @@ fun ChatbotScreen(
     var photoDeclined by remember { mutableStateOf(false) }
     val chatService = remember { ChatService() }
     val listState = rememberLazyListState()
+    var inputText by remember { mutableStateOf("") }
+    val inputFocusRequester = remember { FocusRequester() }
 
     var currentSuggestions by remember { mutableStateOf(chatSuggestions.shuffled()) }
 
@@ -460,12 +464,15 @@ fun ChatbotScreen(
                         .fillMaxWidth()
                         .imePadding()
                         .navigationBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(start = 16.dp, end = 16.dp, top = 8.dp),
                 ) {
                     if (messages.size <= 1 && !isLoading) {
                         SuggestionCards(
                             suggestions = currentSuggestions,
-                            onSuggestionClick = { sendMessage(it) },
+                            onSuggestionClick = { prompt ->
+                                inputText = prompt
+                                scope.launch { inputFocusRequester.requestFocus() }
+                            },
                         )
                         Spacer(Modifier.height(12.dp))
                     }
@@ -488,10 +495,16 @@ fun ChatbotScreen(
                     }
 
                     ChatInputBar(
-                        onSend = { sendMessage(it, pendingImageUri) },
+                        value = inputText,
+                        onValueChange = { inputText = it },
+                        onSend = {
+                            sendMessage(it, pendingImageUri)
+                            inputText = ""
+                        },
                         placeholder = "Ask CookScope anything...",
                         isLoading = isLoading,
                         onAttach = { photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                        focusRequester = inputFocusRequester,
                     )
                 }
             }
@@ -1067,19 +1080,20 @@ private fun SuggestionCards(
  */
 @Composable
 private fun ChatInputBar(
+    value: String,
+    onValueChange: (String) -> Unit,
     onSend: (String) -> Unit,
     placeholder: String = "Ask CookScope anything...",
     isLoading: Boolean = false,
     onAttach: () -> Unit = {},
+    focusRequester: FocusRequester = remember { FocusRequester() },
 ) {
-    var text by remember { mutableStateOf("") }
     var isFocused by remember { mutableStateOf(false) }
 
     fun submit() {
-        val trimmed = text.trim()
+        val trimmed = value.trim()
         if (trimmed.isNotBlank() && !isLoading) {
             onSend(trimmed)
-            text = ""
         }
     }
 
@@ -1114,29 +1128,30 @@ private fun ChatInputBar(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = 4.dp),
+                    .padding(start = 2.dp),
                 contentAlignment = Alignment.CenterStart,
             ) {
-                androidx.compose.foundation.text.BasicTextField(
-                    value = text,
-                    onValueChange = { text = it },
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .focusRequester(focusRequester)
                         .onFocusChanged { isFocused = it.isFocused },
-                    textStyle = androidx.compose.ui.text.TextStyle(
+                    textStyle = TextStyle(
                         color = MaterialTheme.colorScheme.onBackground,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Normal,
                         lineHeight = 22.sp,
                     ),
-                    cursorBrush = androidx.compose.ui.graphics.SolidColor(GoldPrimary),
+                    cursorBrush = SolidColor(GoldPrimary),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                     keyboardActions = KeyboardActions(onSend = { submit() }),
                     singleLine = false,
                     maxLines = 4,
                     decorationBox = { innerTextField ->
                         Box {
-                            if (text.isEmpty() && !isFocused) {
+                            if (value.isEmpty() && !isFocused) {
                                 Text(
                                     placeholder,
                                     style = MaterialTheme.typography.bodyMedium,
@@ -1151,12 +1166,12 @@ private fun ChatInputBar(
 
             IconButton(
                 onClick = { submit() },
-                enabled = text.isNotBlank() && !isLoading,
+                enabled = value.isNotBlank() && !isLoading,
                 modifier = Modifier
                     .size(42.dp)
                     .clip(RoundedCornerShape(21.dp))
                     .background(
-                        if (text.isNotBlank() && !isLoading) {
+                        if (value.isNotBlank() && !isLoading) {
                             Brush.horizontalGradient(listOf(GoldPrimary, GoldDeep))
                         } else {
                             Brush.horizontalGradient(
