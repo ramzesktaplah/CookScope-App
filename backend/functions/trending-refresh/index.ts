@@ -14,7 +14,7 @@ import {
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const BASE_URL = "https://recipeapi.io/api/v1";
-const RECIPE_COUNT = 7;
+const RECIPE_COUNT = 20;
 
 Deno.serve(async (req) => {
   const pre = preflight(req);

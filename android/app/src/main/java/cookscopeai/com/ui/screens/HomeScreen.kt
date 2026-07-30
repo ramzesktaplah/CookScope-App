@@ -89,7 +89,8 @@ private const val DISCOVER_BANNER_AD_UNIT_ID = "ca-app-pub-5940074004186936/9848
  * Discover screen — renamed from Home. Shows a search bar, category chips
  * (All, Breakfast, Lunch, Dinner, Desserts), and a two-column grid of popular
  * recipes. Search rate limits and search persistence are preserved.
- * Loads 20 fresh recipes daily from recipeapi.io, falling back to USDA food cards.
+ * Loads 20 fresh recipes daily from recipeapi.io, falling back to a local seed
+ * library if the network is unavailable.
  */
 @Composable
 fun HomeScreen(
@@ -121,18 +122,18 @@ fun HomeScreen(
 
     val categories = listOf("All", "Breakfast", "Lunch", "Dinner", "Desserts")
 
-    // Load 20 recipes daily. If the cached batch is fresh, use it; otherwise fetch.
-    LaunchedEffect(Unit) {
+    suspend fun loadDiscoverRecipes(forceRefresh: Boolean) {
         isLoading = true
+        loadError = null
         val prefs = discoverPrefs(context)
         val loadedAt = prefs.getLong(KEY_DAILY_RECIPES_LOADED_AT, 0L)
         val isFresh = System.currentTimeMillis() - loadedAt < ONE_DAY_MILLIS
 
         val cachedDaily = RecipeData.dailyRecipes
-        val result = if (isFresh && cachedDaily.isNotEmpty()) {
+        val result = if (!forceRefresh && isFresh && cachedDaily.isNotEmpty()) {
             Result.success(cachedDaily)
         } else {
-            discoveryService.loadRandomRecipes(20)
+            discoveryService.loadDailyRecipes(20)
         }
 
         result.fold(
@@ -144,11 +145,17 @@ fun HomeScreen(
                 loadError = null
             },
             onFailure = {
+                // Fallback chain in loadDailyRecipes should prevent this, but keep UI safe.
                 popularRecipes = emptyList()
-                loadError = "Could not load recipes. Pull down or try again later."
+                loadError = "Could not load recipes. Pull down to try again."
             }
         )
         isLoading = false
+    }
+
+    // Load 20 recipes daily. If the cached batch is fresh, use it; otherwise fetch.
+    LaunchedEffect(Unit) {
+        loadDiscoverRecipes(forceRefresh = false)
     }
 
     fun performSearch() {
@@ -203,30 +210,30 @@ fun HomeScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
-        // Static header + search + chips (not inside the scrollable grid)
-        DiscoverHeader(
-            searchQuery = searchQuery,
-            onSearchChange = { searchQuery = it },
-            onSearch = { performSearch() },
-            onClearSearch = { clearSearch() },
-        )
-
-        if (hasSearched) {
-            SearchResultsSection(
-                isSearching = isSearching,
-                searchResults = searchResults,
+            // Static header + search + chips (not inside the scrollable grid)
+            DiscoverHeader(
                 searchQuery = searchQuery,
+                onSearchChange = { searchQuery = it },
+                onSearch = { performSearch() },
                 onClearSearch = { clearSearch() },
-                onRecipeClick = onRecipeClick,
-            )
-        } else {
-            CategoryChips(
-                categories = categories,
-                selectedCategory = selectedCategory,
-                onCategorySelected = { selectedCategory = it },
             )
 
-            if (isLoading) {
+            if (hasSearched) {
+                SearchResultsSection(
+                    isSearching = isSearching,
+                    searchResults = searchResults,
+                    searchQuery = searchQuery,
+                    onClearSearch = { clearSearch() },
+                    onRecipeClick = onRecipeClick,
+                )
+            } else {
+                CategoryChips(
+                    categories = categories,
+                    selectedCategory = selectedCategory,
+                    onCategorySelected = { selectedCategory = it },
+                )
+
+                if (isLoading) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -257,24 +264,7 @@ fun HomeScreen(
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(GoldPrimary)
                                 .clickable {
-                                    isLoading = true
-                                    loadError = null
-                                    scope.launch {
-                                        val result = discoveryService.loadRandomRecipes(20)
-                                        result.fold(
-                                            onSuccess = { recipes ->
-                                                val branded = recipes.map { it.copy(authorName = "CookScopeAI") }
-                                                popularRecipes = branded
-                                                RecipeData.setDailyRecipes(branded)
-                                                discoverPrefs(context).edit().putLong(KEY_DAILY_RECIPES_LOADED_AT, System.currentTimeMillis()).apply()
-                                            },
-                                            onFailure = {
-                                                popularRecipes = emptyList()
-                                                loadError = "Could not load recipes. Try again later."
-                                            }
-                                        )
-                                        isLoading = false
-                                    }
+                                    scope.launch { loadDiscoverRecipes(forceRefresh = true) }
                                 }
                                 .padding(horizontal = 20.dp, vertical = 10.dp),
                         ) {

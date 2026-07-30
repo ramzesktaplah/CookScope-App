@@ -143,6 +143,34 @@ class RecipeDiscoveryService {
         }
     }
 
+    /**
+     * Load the daily Discover feed. Prefers the server-side trending cache,
+     * falls back to live random recipeapi.io recipes, and finally uses the
+     * local seed recipe library so the Discover screen is never empty.
+     */
+    suspend fun loadDailyRecipes(count: Int = 20): Result<List<Recipe>> {
+        // 1. Try today's server-side trending cache first (fastest, refreshed daily).
+        loadTrendingRecipes().getOrNull()?.let { trending ->
+            if (trending.isNotEmpty()) {
+                RecipeData.setDailyRecipes(trending)
+                return Result.success(trending.take(count))
+            }
+        }
+
+        // 2. Fetch live random recipes from recipeapi.io.
+        loadRandomRecipes(count).getOrNull()?.let { recipes ->
+            if (recipes.isNotEmpty()) {
+                RecipeData.setDailyRecipes(recipes)
+                return Result.success(recipes.take(count))
+            }
+        }
+
+        // 3. Last resort: local seed recipes so the screen is never empty.
+        val seedRecipes = RecipeData.seedRecipes.take(count)
+        RecipeData.setDailyRecipes(seedRecipes)
+        return Result.success(seedRecipes)
+    }
+
     fun close() {
         apiService.close()
     }

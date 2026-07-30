@@ -108,28 +108,56 @@ class RecipeApiService {
 
     /**
      * Get random recipes for discovery on the Home screen.
-     * The backend fans out to recipeapi.io's /recipes/random endpoint.
+     * The backend limits each call to 10 recipes, so we make multiple calls
+     * until we reach the requested count. Duplicates are removed by ID.
      */
     suspend fun getRandomRecipes(count: Int = 10): Result<List<Recipe>> {
         return try {
-            val fetchCount = minOf(count, 10)
-            val result = backend.recipeRandom(fetchCount)
-            if (result.isFailure) {
-                return Result.failure(result.exceptionOrNull() ?: Exception("No recipes returned"))
+            val maxPerCall = 10
+            var remaining = count
+            val allRecipes = mutableListOf<Recipe>()
+            val seenIds = mutableSetOf<String>()
+
+            while (remaining > 0 && allRecipes.size < count) {
+                val fetchCount = minOf(remaining, maxPerCall)
+                val result = backend.recipeRandom(fetchCount)
+                if (result.isFailure) {
+                    // If we already got some recipes, return them; otherwise fail.
+                    if (allRecipes.isEmpty()) {
+                        return Result.failure(result.exceptionOrNull() ?: Exception("No recipes returned"))
+                    }
+                    break
+                }
+                val body = result.getOrThrow()
+                // The backend returns `{ data: [ApiRecipe, ...] }`.
+                val parsed = runCatching {
+                    jsonParser.decodeFromString<RecipeListResponse>(body)
+                }.getOrNull()
+                    ?: runCatching {
+                        jsonParser.decodeFromString<RecipeDetailResponse>(body)
+                    }.getOrNull()?.let { RecipeListResponse(data = listOfNotNull(it.data)) }
+                val recipes = (parsed?.data ?: emptyList())
+                    .map { mapApiRecipeToRecipe(it) }
+                    .filter { seenIds.add(it.id) }
+
+                if (recipes.isEmpty()) {
+                    if (allRecipes.isEmpty()) {
+                        return Result.failure(Exception("No recipes returned"))
+                    }
+                    break
+                }
+
+                allRecipes.addAll(recipes)
+                remaining -= recipes.size
+
+                // If the backend returned fewer than requested, stop trying.
+                if (recipes.size < fetchCount) break
             }
-            val body = result.getOrThrow()
-            // The backend returns `{ data: [ApiRecipe, ...] }`.
-            val parsed = runCatching {
-                jsonParser.decodeFromString<RecipeListResponse>(body)
-            }.getOrNull()
-                ?: runCatching {
-                    jsonParser.decodeFromString<RecipeDetailResponse>(body)
-                }.getOrNull()?.let { RecipeListResponse(data = listOfNotNull(it.data)) }
-            val recipes = (parsed?.data ?: emptyList()).map { mapApiRecipeToRecipe(it) }
-            if (recipes.isEmpty()) {
+
+            if (allRecipes.isEmpty()) {
                 Result.failure(Exception("No recipes returned"))
             } else {
-                Result.success(recipes)
+                Result.success(allRecipes.take(count))
             }
         } catch (e: Exception) {
             Result.failure(e)

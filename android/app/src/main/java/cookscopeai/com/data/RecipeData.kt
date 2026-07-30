@@ -60,6 +60,12 @@ object RecipeData {
      */
     val dailyRecipes: List<Recipe> get() = dailyRecipesCache.values.toList()
 
+    /**
+     * Local seed recipes used as a last-resort fallback when the live API is
+     * unavailable. Rebranded as CookScopeAI so they match the rest of Discover.
+     */
+    val seedRecipes: List<Recipe> get() = recipes.map { it.copy(authorName = "CookScopeAI") }
+
     val cuisines: List<Cuisine> = listOf(
         Cuisine("Italian", "\uD83C\uDDEE\uD83C\uDDF9", "Pasta, risotto & rustic classics"),
         Cuisine("Japanese", "\uD83C\uDDEF\uD83C\uDDF5", "Sushi, ramen & refined techniques"),
