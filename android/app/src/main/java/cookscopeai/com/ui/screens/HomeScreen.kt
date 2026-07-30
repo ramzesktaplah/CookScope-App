@@ -60,6 +60,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -93,7 +94,6 @@ private const val DISCOVER_BANNER_AD_UNIT_ID = "ca-app-pub-5940074004186936/9848
 @Composable
 fun HomeScreen(
     onRecipeClick: (String) -> Unit,
-    onExploreClick: () -> Unit,
     onScanClick: () -> Unit,
     onUpgrade: () -> Unit = {},
 ) {
@@ -102,7 +102,9 @@ fun HomeScreen(
     val scope = rememberCoroutineScope()
     val isPremium by SubscriptionManager.isPremium.collectAsState()
     var isLoading by remember { mutableStateOf(true) }
+    var loadError by remember { mutableStateOf<String?>(null) }
     var popularRecipes by remember { mutableStateOf<List<Recipe>>(emptyList()) }
+    var showAllPopular by remember { mutableStateOf(false) }
     // Use rememberSaveable so search state survives navigation to recipe detail and back.
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var isSearching by rememberSaveable { mutableStateOf(false) }
@@ -139,9 +141,11 @@ fun HomeScreen(
                 popularRecipes = recipesWithBranding
                 RecipeData.setDailyRecipes(recipesWithBranding)
                 prefs.edit().putLong(KEY_DAILY_RECIPES_LOADED_AT, System.currentTimeMillis()).apply()
+                loadError = null
             },
             onFailure = {
-                popularRecipes = RecipeData.featured.map { it.copy(authorName = "CookScopeAI") }
+                popularRecipes = emptyList()
+                loadError = "Could not load recipes. Pull down or try again later."
             }
         )
         isLoading = false
@@ -190,6 +194,10 @@ fun HomeScreen(
         }
     }
 
+    val displayedPopular = remember(filteredPopular, showAllPopular) {
+        if (showAllPopular) filteredPopular else filteredPopular.take(10)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -228,6 +236,57 @@ fun HomeScreen(
                 ) {
                     CircularProgressIndicator(color = GoldPrimary, strokeWidth = 3.dp)
                 }
+            } else if (loadError != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            loadError.orEmpty(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(GoldPrimary)
+                                .clickable {
+                                    isLoading = true
+                                    loadError = null
+                                    scope.launch {
+                                        val result = discoveryService.loadRandomRecipes(20)
+                                        result.fold(
+                                            onSuccess = { recipes ->
+                                                val branded = recipes.map { it.copy(authorName = "CookScopeAI") }
+                                                popularRecipes = branded
+                                                RecipeData.setDailyRecipes(branded)
+                                                discoverPrefs(context).edit().putLong(KEY_DAILY_RECIPES_LOADED_AT, System.currentTimeMillis()).apply()
+                                            },
+                                            onFailure = {
+                                                popularRecipes = emptyList()
+                                                loadError = "Could not load recipes. Try again later."
+                                            }
+                                        )
+                                        isLoading = false
+                                    }
+                                }
+                                .padding(horizontal = 20.dp, vertical = 10.dp),
+                        ) {
+                            Text(
+                                "Try Again",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = Color.Black,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+                }
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
@@ -251,16 +310,16 @@ fun HomeScreen(
                                 fontWeight = FontWeight.Bold,
                             )
                             Text(
-                                "View all",
+                                if (showAllPopular) "Show less" else "View all",
                                 style = MaterialTheme.typography.labelLarge,
                                 color = GoldPrimary,
                                 fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.clickable { onExploreClick() },
+                                modifier = Modifier.clickable { showAllPopular = !showAllPopular },
                             )
                         }
                     }
 
-                    items(filteredPopular) { recipe ->
+                    items(displayedPopular) { recipe ->
                         DiscoverRecipeCard(
                             recipe = recipe,
                             onClick = { onRecipeClick(recipe.id) },

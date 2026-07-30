@@ -281,7 +281,6 @@ fun AppNavigation() {
             composable("home") {
                 HomeScreen(
                     onRecipeClick = { id -> navController.navigate("recipe/$id") },
-                    onExploreClick = { navController.navigate("scan") },
                     onScanClick = { navController.navigate("scan_dish") },
                 )
             }
