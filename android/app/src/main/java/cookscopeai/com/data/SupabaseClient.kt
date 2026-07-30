@@ -20,14 +20,14 @@ import kotlinx.serialization.Serializable
  *
  * Uses native Supabase Auth mode (auth.uid() RLS).
  *
- * Deep link scheme/host: cookscope://login-callback
+ * Deep link scheme/host: cookscope://auth/callback
  * This URL must be added to Supabase Dashboard → Authentication → URL Configuration
  * → Additional Redirect URLs.
  */
 object SupabaseClient {
 
     const val DEEPLINK_SCHEME = "cookscope"
-    const val DEEPLINK_HOST = "login-callback"
+    const val DEEPLINK_HOST = "auth/callback"
 
     val client = createSupabaseClient(
         supabaseUrl = Config.EXPO_PUBLIC_SUPABASE_URL,

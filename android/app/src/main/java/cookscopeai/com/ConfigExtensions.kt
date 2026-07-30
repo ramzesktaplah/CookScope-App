@@ -50,7 +50,7 @@ val Config.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY: String
  *    - Paste the Web Client Secret into "Client Secret".
  *    - Add both the Web and Android Client IDs to "Authorized Client IDs".
  * 6. Supabase Dashboard → Authentication → URL Configuration → add
- *    cookscope://login-callback to "Additional Redirect URLs".
+ *    cookscope://auth/callback to "Additional Redirect URLs".
  *
  * Until this is done, Google sign-in will fail with "No credentials
  * available" (expected on the cloud emulator even after setup if no Google

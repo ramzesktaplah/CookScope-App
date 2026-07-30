@@ -1,5 +1,6 @@
 package cookscopeai.com
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -130,5 +131,13 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+       override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // Handle Supabase Auth deep link when the app is already running
+        // (e.g. user is on the VerifyEmail screen and taps the email link).
+        // singleTop launch mode ensures the existing instance receives this.
+        SupabaseClient.client.handleDeeplinks(intent)
     }
 }

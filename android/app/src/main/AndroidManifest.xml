@@ -24,19 +24,21 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.RorkApp">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Supabase Auth deep link: cookscope://login-callback -->
+            <!-- Supabase Auth deep link: cookscope://auth/callback -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:scheme="cookscope"
-                    android:host="login-callback" />
+                    android:host="auth"
+                    android:pathPattern="/callback" />
             </intent-filter>
         </activity>
         <receiver
