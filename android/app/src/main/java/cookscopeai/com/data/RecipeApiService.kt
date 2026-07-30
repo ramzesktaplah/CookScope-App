@@ -193,7 +193,7 @@ class RecipeApiService {
             tips = emptyList(),
             rating = 4.5f,
             reviewCount = 0,
-            authorName = "Recipe API",
+            authorName = "CookScopeAI",
         )
     }
 

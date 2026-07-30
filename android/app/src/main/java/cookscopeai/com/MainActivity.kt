@@ -23,6 +23,11 @@ import cookscopeai.com.data.ScanUsageManager
 import cookscopeai.com.data.SearchUsageManager
 import cookscopeai.com.data.SubscriptionManager
 import cookscopeai.com.data.SupabaseClient
+import com.google.android.libraries.ads.mobile.sdk.MobileAds
+import com.google.android.libraries.ads.mobile.sdk.initialization.InitializationConfig
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import cookscopeai.com.data.ThemeManager
 import cookscopeai.com.data.UserManager
 import cookscopeai.com.ui.navigation.AppNavigation
@@ -50,6 +55,14 @@ class MainActivity : ComponentActivity() {
             app = application,
             isDebug = BuildConfig.DEBUG,
         )
+        // Initialize GMA Next-Gen SDK on a background thread.
+        // Replace the placeholder App ID with the real ca-app-pub-...~... ID before release.
+        lifecycleScope.launch(Dispatchers.IO) {
+            MobileAds.initialize(
+                this@MainActivity,
+                InitializationConfig.Builder("ca-app-pub-5940074004186936~0000000000").build(),
+            ) { }
+        }
         ChatHistoryManager.initialize(this)
         ChatUsageManager.initialize(this)
         ScanUsageManager.initialize(this)

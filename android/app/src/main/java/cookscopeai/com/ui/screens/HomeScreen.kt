@@ -1,5 +1,8 @@
 package cookscopeai.com.ui.screens
 
+import android.content.Context
+import android.content.SharedPreferences
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,9 +18,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
@@ -37,6 +42,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -48,28 +54,41 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import coil3.compose.AsyncImage
+import com.google.android.libraries.ads.mobile.sdk.banner.AdSize
+import com.google.android.libraries.ads.mobile.sdk.banner.AdView
+import com.google.android.libraries.ads.mobile.sdk.banner.BannerAd
+import com.google.android.libraries.ads.mobile.sdk.banner.BannerAdRequest
+import com.google.android.libraries.ads.mobile.sdk.common.AdLoadCallback
+import com.google.android.libraries.ads.mobile.sdk.common.LoadAdError
 import cookscopeai.com.data.RecipeData
 import cookscopeai.com.data.RecipeDiscoveryService
 import cookscopeai.com.data.SearchUsageManager
-import androidx.compose.foundation.lazy.grid.GridItemSpan
 import cookscopeai.com.data.SubscriptionManager
 import cookscopeai.com.data.model.Recipe
 import cookscopeai.com.ui.theme.GoldPrimary
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+private const val DISCOVER_PREFS = "discover_prefs"
+private const val KEY_DAILY_RECIPES_LOADED_AT = "daily_recipes_loaded_at"
+private const val ONE_DAY_MILLIS = 24 * 60 * 60 * 1000L
+private const val DISCOVER_BANNER_AD_UNIT_ID = "ca-app-pub-5940074004186936/9848909749"
+
 /**
  * Discover screen — renamed from Home. Shows a search bar, category chips
  * (All, Breakfast, Lunch, Dinner, Desserts), and a two-column grid of popular
  * recipes. Search rate limits and search persistence are preserved.
+ * Loads 20 fresh recipes daily from recipeapi.io, falling back to USDA food cards.
  */
 @Composable
 fun HomeScreen(
@@ -78,6 +97,7 @@ fun HomeScreen(
     onScanClick: () -> Unit,
     onUpgrade: () -> Unit = {},
 ) {
+    val context = LocalContext.current
     val discoveryService = remember { RecipeDiscoveryService() }
     val scope = rememberCoroutineScope()
     val isPremium by SubscriptionManager.isPremium.collectAsState()
@@ -99,16 +119,29 @@ fun HomeScreen(
 
     val categories = listOf("All", "Breakfast", "Lunch", "Dinner", "Desserts")
 
-    // Load popular recipes once on entry.
+    // Load 20 recipes daily. If the cached batch is fresh, use it; otherwise fetch.
     LaunchedEffect(Unit) {
         isLoading = true
-        val result = discoveryService.loadRandomRecipes(20)
+        val prefs = discoverPrefs(context)
+        val loadedAt = prefs.getLong(KEY_DAILY_RECIPES_LOADED_AT, 0L)
+        val isFresh = System.currentTimeMillis() - loadedAt < ONE_DAY_MILLIS
+
+        val cachedDaily = RecipeData.dailyRecipes
+        val result = if (isFresh && cachedDaily.isNotEmpty()) {
+            Result.success(cachedDaily)
+        } else {
+            discoveryService.loadRandomRecipes(20)
+        }
+
         result.fold(
             onSuccess = { recipes ->
-                popularRecipes = if (recipes.isNotEmpty()) recipes else RecipeData.featured
+                val recipesWithBranding = recipes.map { it.copy(authorName = "CookScopeAI") }
+                popularRecipes = recipesWithBranding
+                RecipeData.setDailyRecipes(recipesWithBranding)
+                prefs.edit().putLong(KEY_DAILY_RECIPES_LOADED_AT, System.currentTimeMillis()).apply()
             },
             onFailure = {
-                popularRecipes = RecipeData.featured
+                popularRecipes = RecipeData.featured.map { it.copy(authorName = "CookScopeAI") }
             }
         )
         isLoading = false
@@ -128,8 +161,10 @@ fun HomeScreen(
             isSearching = false
             result.fold(
                 onSuccess = { recipes ->
-                    searchResultIds = recipes.map { it.id }
-                    searchResults = recipes
+                    val recipesWithBranding = recipes.map { it.copy(authorName = "CookScopeAI") }
+                    searchResultIds = recipesWithBranding.map { it.id }
+                    searchResults = recipesWithBranding
+                    RecipeData.setApiRecipes(recipesWithBranding)
                     SearchUsageManager.increment()
                 },
                 onFailure = { searchResults = emptyList() }
@@ -196,8 +231,8 @@ fun HomeScreen(
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 100.dp),
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
@@ -234,6 +269,9 @@ fun HomeScreen(
                 }
             }
         }
+
+        // Anchored adaptive banner at the bottom of the Discover tab.
+        DiscoverBannerAd()
     }
 
     // Search rate limit dialog
@@ -261,6 +299,58 @@ fun HomeScreen(
             },
             onDismiss = { showSearchLimitDialog = false },
         )
+    }
+}
+
+@Composable
+private fun DiscoverBannerAd() {
+    val context = LocalContext.current
+    val isPreview = LocalInspectionMode.current
+    if (isPreview) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(60.dp)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                "Ad Banner",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        return
+    }
+
+    val adView = remember {
+        AdView(context).apply {
+            val adSize = AdSize.getLargeAnchoredAdaptiveBannerAdSize(context, 360)
+            val adRequest = BannerAdRequest.Builder(DISCOVER_BANNER_AD_UNIT_ID, adSize).build()
+            loadAd(
+                adRequest,
+                object : AdLoadCallback<BannerAd> {
+                    override fun onAdLoaded(ad: BannerAd) {
+                        Log.d("CookScopeAd", "Discover banner ad loaded")
+                    }
+
+                    override fun onAdFailedToLoad(adError: LoadAdError) {
+                        Log.w("CookScopeAd", "Discover banner ad failed to load: $adError")
+                    }
+                },
+            )
+        }
+    }
+
+    AndroidView(
+        modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentHeight(),
+        factory = { adView },
+    )
+
+    DisposableEffect(Unit) {
+        onDispose { adView.unregisterBannerAd() }
     }
 }
 
@@ -428,7 +518,7 @@ private fun SearchResultsSection(
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 100.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
@@ -526,6 +616,15 @@ private fun DiscoverRecipeCard(
             modifier = Modifier.padding(horizontal = 4.dp),
         )
         Spacer(Modifier.height(6.dp))
+        Text(
+            "By ${recipe.authorName}",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
+        Spacer(Modifier.height(6.dp))
         Row(
             modifier = Modifier.padding(horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -551,4 +650,8 @@ private fun DiscoverRecipeCard(
             )
         }
     }
+}
+
+private fun discoverPrefs(context: Context): SharedPreferences {
+    return context.getSharedPreferences(DISCOVER_PREFS, Context.MODE_PRIVATE)
 }

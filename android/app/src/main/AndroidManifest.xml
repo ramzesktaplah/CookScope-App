@@ -16,6 +16,10 @@
         android:label="CookScope"
         android:supportsRtl="true"
         android:theme="@style/Theme.RorkApp">
+        <!-- AdMob SDK Application ID. Replace with the real ca-app-pub-...~... App ID before release. -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-5940074004186936~0000000000" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

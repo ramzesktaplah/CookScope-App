@@ -19,6 +19,9 @@ object RecipeData {
     // Cache for recipes fetched from recipeapi.io
     private val apiRecipes = mutableMapOf<String, Recipe>()
 
+    // Daily 20-recipe cache for the Discover tab
+    private val dailyRecipesCache = mutableMapOf<String, Recipe>()
+
     fun addRecipe(recipe: Recipe) {
         dynamicRecipes[recipe.id] = recipe
     }
@@ -43,6 +46,19 @@ object RecipeData {
      * All recipes from the API cache.
      */
     val apiCached: List<Recipe> get() = apiRecipes.values.toList()
+
+    /**
+     * Cache the daily 20 recipes shown on the Discover tab.
+     */
+    fun setDailyRecipes(recipes: List<Recipe>) {
+        dailyRecipesCache.clear()
+        recipes.forEach { dailyRecipesCache[it.id] = it }
+    }
+
+    /**
+     * The current daily 20 recipes for the Discover tab.
+     */
+    val dailyRecipes: List<Recipe> get() = dailyRecipesCache.values.toList()
 
     val cuisines: List<Cuisine> = listOf(
         Cuisine("Italian", "\uD83C\uDDEE\uD83C\uDDF9", "Pasta, risotto & rustic classics"),
