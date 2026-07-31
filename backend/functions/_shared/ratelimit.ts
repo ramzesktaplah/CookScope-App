@@ -36,6 +36,7 @@ const LIMITS: Record<string, LimitSpec> = {
   recipe_random: { free: 20, premium: 52, windowSeconds: 24 * 60 * 60 },
   recipe_detail: { free: 20, premium: 52, windowSeconds: 24 * 60 * 60 },
   trending_fetch: { free: 20, premium: 52, windowSeconds: 24 * 60 * 60 },
+  usda_search: { free: 20, premium: 52, windowSeconds: 24 * 60 * 60 },
 };
 
 /**

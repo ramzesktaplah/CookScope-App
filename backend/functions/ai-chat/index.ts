@@ -11,6 +11,7 @@ import {
   corsHeaders,
 } from "../_shared/auth.ts";
 import { enforceRateLimit } from "../_shared/ratelimit.ts";
+import { verifyIntegrity } from "../_shared/integrity.ts";
 
 const TOOLKIT_URL = "https://toolkit.rork.com/v2/vercel/v1/chat/completions";
 
@@ -35,6 +36,7 @@ Deno.serve(async (req) => {
   try {
     const authUser = await requireAuth(req);
     await enforceRateLimit(authUser.userId, "ai_chat");
+    await verifyIntegrity(req, authUser.userId);
 
     const body = await req.json() as ChatRequest;
     if (!Array.isArray(body.messages) || body.messages.length === 0) {

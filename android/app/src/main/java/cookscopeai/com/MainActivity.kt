@@ -35,6 +35,8 @@ import cookscopeai.com.data.UserManager
 import cookscopeai.com.ui.navigation.AppNavigation
 import cookscopeai.com.ui.screens.SplashScreen
 import cookscopeai.com.ui.theme.AppTheme
+import cookscopeai.com.IntegrityChecker
+import cookscopeai.com.data.GOOGLE_CLOUD_PROJECT_NUMBER
 import io.github.jan.supabase.auth.handleDeeplinks
 import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.delay
@@ -50,6 +52,7 @@ class MainActivity : ComponentActivity() {
         SupabaseClient.client.handleDeeplinks(intent)
 
         // Initialize managers in dependency order.
+        IntegrityChecker.init(application)
         ThemeManager.initialize(this)
         UserManager.initialize(this)
         AuthManager.initialize(this)
@@ -73,6 +76,14 @@ class MainActivity : ComponentActivity() {
         SavedItemLimitManager.initialize(this)
         NotificationPreferencesManager.initialize(this)
         NotificationService.initialize(this)
+
+        // Prepare the Play Integrity token provider on a background thread.
+        // This runs once and holds the provider in memory for all subsequent
+        // integrity token requests. If the cloud project number is not yet
+        // configured (empty string), this is a no-op.
+        lifecycleScope.launch(Dispatchers.IO) {
+            IntegrityChecker.prepare(Config.GOOGLE_CLOUD_PROJECT_NUMBER)
+        }
 
         setContent {
             AppTheme {

@@ -62,3 +62,30 @@ val Config.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY: String
  */
 val Config.GOOGLE_WEB_CLIENT_ID: String
     get() = "REPLACE_WITH_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com"
+
+/**
+ * Google Cloud project number for Play Integrity API.
+ *
+ * --- SETUP INSTRUCTIONS (required before Play Integrity works) ---
+ *
+ * 1. Google Cloud Console → Create or select a project → note the
+ *    Project Number (shown on the dashboard home page, NOT the project ID).
+ * 2. Enable the Play Integrity API: APIs & Services → Library →
+ *    search "Play Integrity API" → Enable.
+ * 3. Google Play Console → Your app → Protected with Play → Link the
+ *    Cloud project from step 1.
+ * 4. Replace the placeholder below with the numeric project number.
+ * 5. On the backend, set these Supabase Edge Function secrets:
+ *    - GOOGLE_CLOUD_PROJECT_NUMBER (same number as above)
+ *    - GOOGLE_SERVICE_ACCOUNT_JSON (service account JSON key from Cloud
+ *      Console → IAM → Service accounts → Create key)
+ *    - INTEGRITY_ENFORCE=true (only once you're ready to fail-closed;
+ *      leave unset during the transition grace period)
+ *
+ * This is a public project number, not a secret — it identifies the
+ * Google Cloud project but cannot be used to access resources on its own.
+ * Until it's set, integrity checks are no-ops (client returns null tokens,
+ * backend fails-open).
+ */
+val Config.GOOGLE_CLOUD_PROJECT_NUMBER: String
+    get() = ""

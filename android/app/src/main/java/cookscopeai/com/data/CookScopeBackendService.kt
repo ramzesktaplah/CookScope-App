@@ -1,6 +1,7 @@
 package cookscopeai.com.data
 
 import cookscopeai.com.Config
+import cookscopeai.com.IntegrityChecker
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.ktor.client.HttpClient
@@ -225,6 +226,29 @@ class CookScopeBackendService {
         return postJson("$functionsBase/recipe-random", body).mapResponse { it }
     }
 
+    /**
+     * Call the `usda-search` function to search USDA FoodData Central.
+     * Returns the raw `{ foods: [...] }` payload as a string.
+     */
+    suspend fun usdaSearch(query: String, pageSize: Int): Result<String> {
+        val body = buildJsonObject {
+            put("query", query)
+            put("pageSize", pageSize)
+        }
+        return postJson("$functionsBase/usda-search", body).mapResponse { it }
+    }
+
+    /**
+     * Call the `usda-search` function with an FDC ID to get nutrition detail.
+     * Returns the raw USDA food item payload as a string.
+     */
+    suspend fun usdaNutrition(fdcId: Int): Result<String> {
+        val body = buildJsonObject {
+            put("fdcId", fdcId)
+        }
+        return postJson("$functionsBase/usda-search", body).mapResponse { it }
+    }
+
     // ---- Internals ----
 
     /** Simple message shape for `aiChat`. */
@@ -244,18 +268,30 @@ class CookScopeBackendService {
     }
 
     /**
-     * POST a JSON object to a function endpoint with the bearer token.
-     * On a non-2xx response, returns a safe user-facing error message.
+     * POST a JSON object to a function endpoint with the bearer token and
+     * Play Integrity headers. On a non-2xx response, returns a safe
+     * user-facing error message.
      */
     private suspend fun postJson(url: String, payload: JsonObject): Result<String> {
         return try {
             val token = currentAccessToken()
                 ?: return Result.failure(Exception("Authentication required. Please sign in again."))
 
+            // Request a Play Integrity token with a hash of the payload.
+            // Returns null if the provider isn't ready (cold start) or if
+            // the Play Integrity API is unavailable (e.g. emulator).
+            val requestHash = IntegrityChecker.sha256(payload.toString())
+            val integrityToken = IntegrityChecker.requestToken(requestHash)
+
             val response: HttpResponse = client.post(url) {
                 header("Authorization", "Bearer $token")
                 contentType(ContentType.Application.Json)
                 setBody(payload.toString())
+                // Attach integrity headers if a token was obtained.
+                if (integrityToken != null) {
+                    header("X-Integrity-Token", integrityToken)
+                    header("X-Integrity-Hash", requestHash)
+                }
             }
 
             val text = response.bodyAsText()
@@ -268,6 +304,15 @@ class CookScopeBackendService {
                     val retryAfter = parsed?.retryAfterSeconds?.toLong() ?: 0L
                     val msg = parsed?.error ?: "Rate limit reached. Please try again later."
                     return Result.failure(RateLimitException(retryAfter, msg))
+                }
+                // 403 — integrity check failed (app not recognized or device not trusted).
+                if (response.status == HttpStatusCode.Forbidden) {
+                    val safe = runCatching {
+                        json.decodeFromString<BackendError>(text).error
+                    }.getOrNull()
+                    return Result.failure(Exception(
+                        safe ?: "App verification failed. Please ensure you're using the official app from Google Play.",
+                    ))
                 }
                 val safe = runCatching {
                     json.decodeFromString<BackendError>(text).error

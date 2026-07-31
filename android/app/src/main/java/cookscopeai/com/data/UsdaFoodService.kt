@@ -3,41 +3,25 @@ package cookscopeai.com.data
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.request.get
-import io.ktor.client.request.header
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.client.statement.HttpResponse
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
-import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 
 /**
- * USDA FoodData Central API client.
- * Provides factual nutrition data for foods.
- * Used alongside DeepSeek to ground chatbot answers in reliable data.
+ * USDA FoodData Central nutrition data client.
  *
- * API docs: https://fdc.nal.usda.gov/api-guide.html
- * Uses the public DEMO_KEY which has 1,000 requests/hour rate limit.
- * For production, swap with a registered API key from https://fdc.nal.usda.gov/api-key-signup
+ * All USDA API calls are now proxied through the `usda-search` Supabase Edge
+ * Function so the USDA API key never ships in the APK. The edge function
+ * handles authentication, rate limiting, and Play Integrity verification.
+ *
+ * Used alongside DeepSeek to ground chatbot answers in reliable nutritional
+ * data. API docs: https://fdc.nal.usda.gov/api-guide.html
  */
-class UsdaFoodService {
+class UsdaFoodService(
+    private val backend: CookScopeBackendService = CookScopeBackendService(),
+) {
 
-    private val client = HttpClient(Android) {
-        install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys = true })
-        }
-    }
-
-    private val baseUrl = "https://api.nal.usda.gov/fdc/v1"
-    private val apiKey = "DEMO_KEY"
     private val json = Json { ignoreUnknownKeys = true }
 
     // In-memory cache for common food lookups
@@ -94,8 +78,7 @@ class UsdaFoodService {
     )
 
     /**
-     * Search for foods by query string.
-     * Returns a list of matching food items.
+     * Search for foods by query string via the backend edge function.
      * Results are cached for subsequent lookups.
      */
     suspend fun searchFoods(query: String, pageSize: Int = 5): Result<List<FoodSearchResult>> {
@@ -103,66 +86,48 @@ class UsdaFoodService {
         foodCache[cacheKey]?.let { return Result.success(listOf(it)) }
 
         return try {
-            val requestBody = buildJsonObject {
-                put("query", query)
-                put("pageSize", pageSize)
-                put("sortBy", "dataType")
-                put("sortOrder", "asc")
-            }
-
-            val response: HttpResponse = client.post("$baseUrl/foods/search?api_key=$apiKey") {
-                header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
-                contentType(ContentType.Application.Json)
-                setBody(requestBody.toString())
-            }
-
-            if (response.status.value !in 200..299) {
-                return Result.failure(Exception("USDA search failed: ${response.status.value}"))
-            }
-
-            val responseText = response.bodyAsText()
-            val searchResponse = json.decodeFromString<FoodSearchResponse>(responseText)
-
-            val results = searchResponse.foods.map { food ->
-                FoodSearchResult(
-                    fdcId = food.fdcId,
-                    description = food.description,
-                    dataType = food.dataType,
-                    category = food.foodCategory,
-                )
-            }
-
-            // Cache the first result for common lookups
-            if (results.isNotEmpty()) {
-                foodCache[cacheKey] = results.first()
-            }
-
-            Result.success(results)
+            val result = backend.usdaSearch(query, pageSize)
+            result.fold(
+                onSuccess = { raw ->
+                    val searchResponse = json.decodeFromString<FoodSearchResponse>(raw)
+                    val results = searchResponse.foods.map { food ->
+                        FoodSearchResult(
+                            fdcId = food.fdcId,
+                            description = food.description,
+                            dataType = food.dataType,
+                            category = food.foodCategory,
+                        )
+                    }
+                    if (results.isNotEmpty()) {
+                        foodCache[cacheKey] = results.first()
+                    }
+                    Result.success(results)
+                },
+                onFailure = { Result.failure(it) },
+            )
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
     /**
-     * Get detailed nutrition data for a specific food by FDC ID.
-     * Results are cached.
+     * Get detailed nutrition data for a specific food by FDC ID via the
+     * backend edge function. Results are cached.
      */
     suspend fun getNutrition(fdcId: Int): Result<FoodNutrition> {
         nutritionCache[fdcId]?.let { return Result.success(it) }
 
         return try {
-            val response: HttpResponse = client.get("$baseUrl/food/$fdcId?api_key=$apiKey")
-
-            if (response.status.value !in 200..299) {
-                return Result.failure(Exception("USDA food detail failed: ${response.status.value}"))
-            }
-
-            val responseText = response.bodyAsText()
-            val foodItem = json.decodeFromString<FoodItem>(responseText)
-
-            val nutrition = extractNutrition(foodItem)
-            nutritionCache[fdcId] = nutrition
-            Result.success(nutrition)
+            val result = backend.usdaNutrition(fdcId)
+            result.fold(
+                onSuccess = { raw ->
+                    val foodItem = json.decodeFromString<FoodItem>(raw)
+                    val nutrition = extractNutrition(foodItem)
+                    nutritionCache[fdcId] = nutrition
+                    Result.success(nutrition)
+                },
+                onFailure = { Result.failure(it) },
+            )
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -182,7 +147,7 @@ class UsdaFoodService {
                     }
                     getNutrition(results.first().fdcId)
                 },
-                onFailure = { Result.failure(it) }
+                onFailure = { Result.failure(it) },
             )
         } catch (e: Exception) {
             Result.failure(e)
@@ -200,7 +165,7 @@ class UsdaFoodService {
                 val nutrition = getFoodNutrition(query)
                 nutrition.fold(
                     onSuccess = { data -> results[query] = data },
-                    onFailure = { /* skip failed lookups */ }
+                    onFailure = { /* skip failed lookups */ },
                 )
             }
             if (results.isEmpty()) {
@@ -259,7 +224,7 @@ class UsdaFoodService {
     }
 
     fun close() {
-        client.close()
+        backend.close()
     }
 
     companion object {

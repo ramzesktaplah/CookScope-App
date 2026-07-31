@@ -9,6 +9,7 @@ import {
   safeError,
 } from "../_shared/auth.ts";
 import { enforceRateLimit } from "../_shared/ratelimit.ts";
+import { verifyIntegrity } from "../_shared/integrity.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 Deno.serve(async (req) => {
@@ -18,6 +19,7 @@ Deno.serve(async (req) => {
   try {
     const authUser = await requireAuth(req);
     await enforceRateLimit(authUser.userId, "trending_fetch");
+    await verifyIntegrity(req, authUser.userId);
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,

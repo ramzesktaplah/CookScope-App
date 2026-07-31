@@ -83,6 +83,14 @@ export function safeError(err: unknown): Response {
       retryAfterSeconds: rle.retryAfterSeconds ?? 0,
     }, 429);
   }
+  // IntegrityError — return 403 with a user-facing message.
+  if (err && typeof err === "object" && err.name === "IntegrityError") {
+    const ie = err as { message?: string };
+    return json({
+      error: ie.message ??
+        "App verification failed. Please use the official app from Google Play.",
+    }, 403);
+  }
   console.error("edge function error:", err);
   return json({ error: "Service unavailable. Please try again later." }, 500);
 }

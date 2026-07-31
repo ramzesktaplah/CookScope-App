@@ -9,6 +9,7 @@ import {
   safeError,
 } from "../_shared/auth.ts";
 import { enforceRateLimit } from "../_shared/ratelimit.ts";
+import { verifyIntegrity } from "../_shared/integrity.ts";
 
 const BASE_URL = "https://recipeapi.io/api/v1";
 
@@ -26,6 +27,7 @@ Deno.serve(async (req) => {
   try {
     const authUser = await requireAuth(req);
     await enforceRateLimit(authUser.userId, "recipe_search");
+    await verifyIntegrity(req, authUser.userId);
 
     let body: SearchRequest = {};
     if (req.method === "POST") {
