@@ -114,7 +114,7 @@ fun SignUpScreen(
 
         val isFormValid = username.isNotBlank() &&
             email.isNotBlank() &&
-            password.length >= 6 &&
+            password.length >= 12 &&
             email.contains("@")
 
         Box(
@@ -204,7 +204,7 @@ fun SignUpScreen(
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Use at least 6 characters.",
+                    "Use at least 12 characters with a mix of letters and numbers.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -219,7 +219,7 @@ fun SignUpScreen(
                             error = when {
                                 username.isBlank() -> "Please enter a username."
                                 email.isBlank() || !email.contains("@") -> "Please enter a valid email."
-                                password.length < 6 -> "Password must be at least 6 characters."
+                                password.length < 12 -> "Password must be at least 12 characters."
                                 else -> "Please fill in all fields."
                             }
                             return@Button

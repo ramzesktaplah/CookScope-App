@@ -8,6 +8,7 @@ import {
   json,
   safeError,
 } from "../_shared/auth.ts";
+import { enforceRateLimit } from "../_shared/ratelimit.ts";
 
 const BASE_URL = "https://recipeapi.io/api/v1";
 
@@ -16,7 +17,8 @@ Deno.serve(async (req) => {
   if (pre) return pre;
 
   try {
-    await requireAuth(req);
+    const authUser = await requireAuth(req);
+    await enforceRateLimit(authUser.userId, "recipe_random");
 
     let count = 6;
     if (req.method === "POST") {

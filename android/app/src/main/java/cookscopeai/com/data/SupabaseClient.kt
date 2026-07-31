@@ -16,8 +16,7 @@ import kotlinx.serialization.Serializable
  * - profiles: user profile data (username, bio, avatar, plan, onboarding_complete)
  * - saved_recipes: bookmarked recipes per user
  * - user_preferences: dietary tags, skill level, cuisines, allergies
- * - chat_messages: chat history per user
- *
+
  * Uses native Supabase Auth mode (auth.uid() RLS).
  *
  * Deep link scheme/host: cookscope://auth/callback
@@ -79,15 +78,6 @@ object SupabaseClient {
         @SerialName("favorite_cuisines") val favoriteCuisines: List<String> = emptyList(),
         val allergies: List<String> = emptyList(),
         @SerialName("updated_at") val updatedAt: String? = null,
-    )
-
-    @Serializable
-    data class ChatMessageDto(
-        val id: String? = null,
-        @SerialName("user_id") val userId: String = "",
-        val role: String = "",
-        val content: String = "",
-        @SerialName("created_at") val createdAt: String? = null,
     )
 
     @Serializable

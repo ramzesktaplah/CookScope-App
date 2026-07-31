@@ -8,6 +8,7 @@ import {
   json,
   safeError,
 } from "../_shared/auth.ts";
+import { enforceRateLimit } from "../_shared/ratelimit.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 Deno.serve(async (req) => {
@@ -15,7 +16,8 @@ Deno.serve(async (req) => {
   if (pre) return pre;
 
   try {
-    await requireAuth(req);
+    const authUser = await requireAuth(req);
+    await enforceRateLimit(authUser.userId, "trending_fetch");
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,

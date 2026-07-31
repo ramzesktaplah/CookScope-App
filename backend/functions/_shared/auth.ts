@@ -75,6 +75,14 @@ export function safeError(err: unknown): Response {
   if (err instanceof AuthError) {
     return json({ error: "Unauthorized" }, 401);
   }
+  // RateLimitError — return 429 with retry-after seconds.
+  if (err && typeof err === "object" && err.name === "RateLimitError") {
+    const rle = err as { retryAfterSeconds?: number; limit?: number };
+    return json({
+      error: "Rate limit reached. Please try again later.",
+      retryAfterSeconds: rle.retryAfterSeconds ?? 0,
+    }, 429);
+  }
   console.error("edge function error:", err);
   return json({ error: "Service unavailable. Please try again later." }, 500);
 }

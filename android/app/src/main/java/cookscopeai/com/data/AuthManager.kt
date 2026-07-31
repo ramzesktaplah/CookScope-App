@@ -284,7 +284,7 @@ object AuthManager {
             msg.contains("weak_password") ||
                 msg.contains("password should be") ||
                 msg.contains("password should contain") ->
-                "Password is too weak. Use at least 6 characters with a mix of letters and numbers."
+                "Password is too weak. Use at least 12 characters with a mix of letters and numbers."
 
             msg.contains("invalid login credentials") ||
                 msg.contains("invalid credentials") ->

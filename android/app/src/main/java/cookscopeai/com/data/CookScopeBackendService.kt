@@ -12,8 +12,10 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -54,6 +56,20 @@ class CookScopeBackendService {
     /** Generic error returned by every backend function. */
     @Serializable
     private data class BackendError(val error: String? = null)
+
+    /** Generic backend response that may include retry-after info. */
+    @Serializable
+    private data class BackendRateLimitError(
+        val error: String? = null,
+        @SerialName("retryAfterSeconds") val retryAfterSeconds: Int? = null,
+    )
+
+    /**
+     * Thrown when the backend returns HTTP 429 (rate limit exceeded).
+     * Carries the server-enforced retry-after seconds so callers can show
+     * a countdown in the rate-limit dialog.
+     */
+    class RateLimitException(val retryAfterSeconds: Long, message: String) : Exception(message)
 
     /** Result of an AI chat call. */
     data class AiChatResult(
@@ -244,6 +260,15 @@ class CookScopeBackendService {
 
             val text = response.bodyAsText()
             if (response.status.value !in 200..299) {
+                // 429 — rate limit exceeded: extract server-provided retryAfterSeconds.
+                if (response.status == HttpStatusCode.TooManyRequests) {
+                    val parsed = runCatching {
+                        json.decodeFromString<BackendRateLimitError>(text)
+                    }.getOrNull()
+                    val retryAfter = parsed?.retryAfterSeconds?.toLong() ?: 0L
+                    val msg = parsed?.error ?: "Rate limit reached. Please try again later."
+                    return Result.failure(RateLimitException(retryAfter, msg))
+                }
                 val safe = runCatching {
                     json.decodeFromString<BackendError>(text).error
                 }.getOrNull()
