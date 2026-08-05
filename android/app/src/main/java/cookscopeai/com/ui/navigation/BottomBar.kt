@@ -22,12 +22,16 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Book
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.CameraAlt
-import androidx.compose.material.icons.outlined.Explore
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -51,7 +55,7 @@ data class GlassTabItem(
 )
 
 val glassTabs = listOf(
-    GlassTabItem("home", "Discover", Icons.Filled.Explore, Icons.Outlined.Explore),
+    GlassTabItem("home", "Home", Icons.Filled.Home, Icons.Outlined.Home),
     GlassTabItem("scan", "Scan", Icons.Filled.CameraAlt, Icons.Outlined.CameraAlt),
     GlassTabItem("chat", "Chat", Icons.Filled.AutoAwesome, Icons.Outlined.AutoAwesome),
     GlassTabItem("create", "Create", Icons.Filled.Book, Icons.Outlined.Book),
