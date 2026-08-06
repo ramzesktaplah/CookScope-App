@@ -86,6 +86,7 @@ import cookscopeai.com.ui.theme.GoldDeep
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Calendar
+// Home dashboard — restored classic layout
 
 private const val HOME_PREFS = "discover_prefs"
 private const val KEY_DAILY_RECIPES_LOADED_AT = "daily_recipes_loaded_at"

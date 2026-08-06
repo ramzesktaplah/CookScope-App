@@ -14,14 +14,12 @@
 # Rename source file name in stack traces for obfuscation
 -renamesourcefileattribute SourceFile
 
-# Disable shrinking and optimization passes — these are the most
-# memory-intensive parts of R8 (call-graph tracing for dead-code
-# elimination and bytecode optimization). Obfuscation (class/method
-# name renaming) still runs, which is the core M7 security goal:
-# hiding internal class and method names in the shipped binary.
-# The APK is slightly larger without shrinking, but the binary
-# protection benefit is fully achieved.
--dontshrink
+# Disable optimization pass (bytecode optimization is memory-intensive
+# and not needed for obfuscation). Shripping IS enabled so R8 can
+# eliminate dead code before obfuscation — this reduces peak memory
+# by shrinking the class graph that the obfuscation phase must process.
+# Obfuscation (class/method name renaming) still runs, which is the
+# core M7 security goal: hiding internal class and method names.
 -dontoptimize
 
 # ---------------------------------------------------------------------------
